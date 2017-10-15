@@ -1,0 +1,5 @@
+program : func-defs
+func-defs : func_def*
+func-def : INDENTIFIER IDENTIFIER arg-list func-body
+arg-list : LPAREN RPAREN
+func-body : LBRACE RBRACE

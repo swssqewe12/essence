@@ -1,0 +1,5 @@
+program : var-declarations function-definitions
+var-declarations : (var-declaration ';')*
+var-declaration : type-specifier var-assignement (',' var-assignement)* ';'
+var-assignement : identifier '=' expression
+identifier = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | ...
