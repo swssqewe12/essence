@@ -28,6 +28,7 @@ import string
 ##EOF        =    'EOF'
 
 IDENTIFIER  =   'IDENTIFIER'
+KEYWORD     =   'KEYWORD'
 LPAREN      =   'LPAREN'
 RPAREN      =   'RPAREN'
 LBRACE      =   'LBRACE'
@@ -248,10 +249,16 @@ class Parser(object):
     #####################
 
     def program(self):
-        decl = self.external_declaration()
-        return ProgramTree([decl])
+        decls = self.declarations()
+        return ProgramTree([decls])
 
-    def external_declaration(self):
+    def declarations(self):
+        decls = []
+        while self.token_is(IDENTIFIER):
+            decls.append(self.declaration())
+        return decls
+
+    def declaration(self):
         typ = self.eat(IDENTIFIER)
         name = self.eat(IDENTIFIER)
         args = self.argument_list()
