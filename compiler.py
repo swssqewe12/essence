@@ -5,6 +5,7 @@
 ###############################################################################
 
 import os
+import string
 
 ###############################################################################
 #                                                                             #
@@ -26,6 +27,11 @@ import os
 ##RPAREN     =    'RPAREN'
 ##EOF        =    'EOF'
 
+IDENTIFIER  =   'IDENTIFIER'
+LPAREN      =   'LPAREN'
+RPAREN      =   'RPAREN'
+LBRACE      =   'LBRACE'
+RBRACE      =   'RBRACE'
 EOF         =   'EOF'
 
 lexer_pos = 0
@@ -42,6 +48,7 @@ class Token(object):
 
 class Lexer(object):
     def __init__(self, text):
+        global lexer_pos
         self.text = text
         self.pos = 0
         lexer_pos = self.pos
@@ -51,6 +58,7 @@ class Lexer(object):
         raise_error("main.ess", "Illegal character", self.text, self.pos)
 
     def advance(self):
+        global lexer_pos
         self.pos += 1
         lexer_pos = self.pos
         if self.pos > len(self.text) - 1:
@@ -69,13 +77,48 @@ class Lexer(object):
 ##            self.advance()
 ##        return int(result)
 
+    def identifier(self):
+
+        letters = list(string.ascii_uppercase + string.ascii_lowercase)
+        digits = list(range(10))
+
+        result = ""
+
+        while self.current_char in letters + digits:
+            result += self.current_char
+            self.advance()
+
+        return result
+            
+
     def get_next_token(self):
         
         while self.current_char is not None:
 
+            letters = list(string.ascii_uppercase + string.ascii_lowercase)
+
             if self.current_char.isspace():
                 self.skip_whitespace()
                 continue
+
+            if self.current_char == '(':
+                self.advance()
+                return Token(LPAREN, '(')
+
+            if self.current_char == ')':
+                self.advance()
+                return Token(RPAREN, ')')
+
+            if self.current_char == '{':
+                self.advance()
+                return Token(LBRACE, '{')
+
+            if self.current_char == '}':
+                self.advance()
+                return Token(RBRACE, '}')
+
+            if self.current_char in letters:
+                return Token(IDENTIFIER, self.identifier())
 
 ##            if self.current_char.isdigit():
 ##                return Token(INTEGER, self.integer())
@@ -131,6 +174,17 @@ class Node(AST):
 
 #####################################
 
+class ProgramTree(AST):
+    def __init__(self, decls):
+        self.decls = decls
+
+class FunctionDeclarationNode(Node):
+    def __init__(self, typ, name, args, statements):
+        self.type = typ
+        self.name = name
+        self.args = args
+        self.statements = statements
+
 ##class NumberNode(Node):
 ##    def __init__(self, token):
 ##        self.token = token
@@ -166,16 +220,19 @@ class Parser(object):
         return False
 
     def eat(self, *token_types):
+        value = self.current_token.value
         if not token_types:
             self.current_token = self.lexer.get_next_token()
-            return
+            return value
         error = True
         for token_type in token_types:
             if self.tryeat(token_type):
                 error = False
                 break
         if error:
+
             self.error()
+        return value
 
     def token_is(self, *token_types):
         return self.current_token.type in token_types
@@ -191,7 +248,25 @@ class Parser(object):
     #####################
 
     def program(self):
-        return {}
+        decl = self.external_declaration()
+        return ProgramTree([decl])
+
+    def external_declaration(self):
+        typ = self.eat(IDENTIFIER)
+        name = self.eat(IDENTIFIER)
+        args = self.argument_list()
+        statements = self.compound_statement()
+        return FunctionDeclarationNode(typ, name, args, statements)
+
+    def argument_list(self):
+        self.eat(LPAREN)
+        self.eat(RPAREN)
+        return []
+
+    def compound_statement(self):
+        self.eat(LBRACE)
+        self.eat(RBRACE)
+        return []
         
     
 
@@ -275,7 +350,7 @@ def get_line(string, line):
     return string.split("\n")[line]
 
 def raise_simple_error(f, error):
-    os.system("cls")
+    #os.system("cls")
     print "An error has occured in `" + f + "`"
     print "Error: " + error
     print
@@ -283,15 +358,20 @@ def raise_simple_error(f, error):
     exit(0)
 
 def raise_error(f, error, string, index):
-    line, col = get_line_col(string, index)
-    os.system("cls")
+    index2 = index
+    while index2 >= len(string):
+        index2 -= 1
+    diff = index - index2 + 1
+    line, col = get_line_col(string, index2)
+    col += diff
+    #os.system("cls")
     print "An error has occured in `" + f + "`"
     print
     print "Error: " + error
     print "Ln: " + str(line) + "  Col: " + str(col)
     print
     print get_line(string, line-1)
-    print " " * col + "^"
+    print " " * (col - 1) + "^"
     print
     os.system("pause")
     exit(0)
@@ -314,9 +394,9 @@ if __name__ == '__main__':
     lexer = Lexer(data)
     parser = Parser(lexer)
     result = parser.parse()
-    
+
     import json
-    print json.dumps(result, default=lambda o: o.__dict__)
+    print json.dumps(result, default=lambda o: o.__dict__, indent=4, sort_keys=True)
     print
 
     os.system("pause")
