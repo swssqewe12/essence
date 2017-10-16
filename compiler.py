@@ -172,8 +172,6 @@ class SymbolTable:
         self.symbols = {}
     
     def add(self, symbol):
-        if symbol.name in self.symbols:
-            raise_simple_error("main.ess", "Symbol `" + symbol.name + "` has already been defined")
         self.symbols[symbol.name] = symbol
 
     def has(self, name):
@@ -240,6 +238,8 @@ class Program(AST):
         
         for decl in decls:
             if isinstance(decl, FunctionDeclarationNode):
+                if self.symbol_table.has(decl.name.value):
+                    raise_error("main.ess", "Symbol `" + decl.name.value + "` has already been defined", data, decl.name.lexer_pos)
                 self.symbol_table.add(FunctionSymbol(decl.name.value, decl.type.value))
 
 class FunctionDeclarationNode(Node):
@@ -368,10 +368,10 @@ class SemanticAnalyzer(NodeVisitor):
         for decl in program.decls:
             if isinstance(decl, FunctionDeclarationNode):
                 if not program.symbol_table.has(decl.type.value):
-                    raise_simple_error("main.ess", "Symbol `" + decl.type.value + "` was not declared")
+                    raise_error("main.ess", "Symbol `" + decl.type.value + "` was not declared", data, decl.type.lexer_pos)
                 symbol = program.symbol_table.get(decl.type.value)
                 if not isinstance(symbol, BuiltInTypeSymbol):
-                    raise_simple_error("main.ess", "Expected built-in type but instead got " + get_symbol_type(symbol) + " `" + symbol.name + "`")
+                    raise_error("main.ess", "Expected built-in type but instead got " + get_symbol_type(symbol) + " `" + symbol.name + "`", data, decl.type.lexer_pos)
 
     def generic_visit(self, node):
         pass
@@ -424,7 +424,7 @@ def get_line(string, line):
     return string.split("\n")[line]
 
 def raise_simple_error(f, error):
-    #os.system("cls")
+    os.system("cls")
     print "An error has occured in `" + f + "`"
     print "Error: " + error
     print
@@ -438,7 +438,7 @@ def raise_error(f, error, string, index):
     diff = index - index2 + 1
     line, col = get_line_col(string, index2)
     col += diff
-    #os.system("cls")
+    os.system("cls")
     print "An error has occured in `" + f + "`"
     print
     print "Error: " + error
