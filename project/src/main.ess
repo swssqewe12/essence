@@ -1,9 +1,4 @@
-int main()
+void func()
 {
-
-}
-
-void helloWorld()
-{
-
+	
 }

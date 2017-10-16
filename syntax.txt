@@ -1,8 +1,9 @@
-program : external-declaration*
-external-declaration : IDENTIFIER IDENTIFIER argument-list compound-statement
-argument-list : LPAREN RPAREN
-compound-statement : LBRACE statement RBRACE
-statement : 
+program					:	declaration*
+declaration				:	function-definition
+function-definition		:	IDENTIFIER IDENTIFIER argument-list compound-statement
+argument-list			:	LPAREN RPAREN
+compound-statement		:	LBRACE statement* RBRACE
+statement				:	
 
 program : func-defs
 func-defs : func_def*

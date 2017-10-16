@@ -33,6 +33,7 @@ LPAREN      =   'LPAREN'
 RPAREN      =   'RPAREN'
 LBRACE      =   'LBRACE'
 RBRACE      =   'RBRACE'
+SEMI        =   'SEMI'
 EOF         =   'EOF'
 
 lexer_pos = 0
@@ -118,6 +119,10 @@ class Lexer(object):
                 self.advance()
                 return Token(RBRACE, '}')
 
+            if self.current_char == ';':
+                self.advance()
+                return Token(SEMI, ';')
+
             if self.current_char in letters:
                 return Token(IDENTIFIER, self.identifier())
 
@@ -156,6 +161,45 @@ class Lexer(object):
 
         return Token(EOF, None)
 
+###############################################################################
+#                                                                             #
+#  SYMBOLS                                                                    #
+#                                                                             #
+###############################################################################
+
+class SymbolTable:
+    def __init__(self):
+        self.symbols = {}
+    
+    def add(self, symbol):
+        if symbol.name in self.symbols:
+            raise_simple_error("main.ess", "Symbol `" + symbol.name + "` has already been defined")
+        self.symbols[symbol.name] = symbol
+
+    def has(self, name):
+        return name in self.symbols
+
+    def get(self, name):
+        return self.symbols.get(name, None)
+
+class Symbol(object):
+    def __init__(self, name, typ=None):
+        self.name = name
+        self.type = typ
+
+class VarSymbol(Symbol):
+    def __init__(self, name, typ):
+        Symbol.__init__(self, name, typ)
+
+class BuiltInTypeSymbol(Symbol):
+    def __init__(self, name):
+        Symbol.__init__(self, name)
+
+class FunctionSymbol(Symbol):
+    def __init__(self, name, typ):
+        Symbol.__init__(self, name, typ)
+
+TYPE_VOID = BuiltInTypeSymbol("void")
 
 ###############################################################################
 #                                                                             #
@@ -163,21 +207,32 @@ class Lexer(object):
 #                                                                             #
 ###############################################################################
 
-#####################################
-# AST and Node                      #
-#####################################
-
 class AST(object):
     pass
 
 class Node(AST):
     pass
 
+class NodeVisitor(object):
+    def visit(self, node):
+        method_name = 'visit_' + type(node).__name__
+        visitor = getattr(self, method_name, self.generic_visit)
+        return visitor(node)
+
+    def generic_visit(self, node):
+        raise Exception('No visit_{} method'.format(type(node).__name__))
+
 #####################################
 
-class ProgramTree(AST):
+class Program(AST):
     def __init__(self, decls):
         self.decls = decls
+        self.symbol_table = SymbolTable()
+        self.symbol_table.add(TYPE_VOID)
+        
+        for decl in decls:
+            if isinstance(decl, FunctionDeclarationNode):
+                self.symbol_table.add(FunctionSymbol(decl.name, decl.type))
 
 class FunctionDeclarationNode(Node):
     def __init__(self, typ, name, args, statements):
@@ -185,6 +240,11 @@ class FunctionDeclarationNode(Node):
         self.name = name
         self.args = args
         self.statements = statements
+
+class FunctionCallNode(Node):
+    def __init__(self, name, params):
+        self.name = name
+        self.params = params
 
 ##class NumberNode(Node):
 ##    def __init__(self, token):
@@ -250,7 +310,7 @@ class Parser(object):
 
     def program(self):
         decls = self.declarations()
-        return ProgramTree([decls])
+        return Program(decls)
 
     def declarations(self):
         decls = []
@@ -261,83 +321,76 @@ class Parser(object):
     def declaration(self):
         typ = self.eat(IDENTIFIER)
         name = self.eat(IDENTIFIER)
-        args = self.argument_list()
+        args = self.function_definition_argument_list()
         statements = self.compound_statement()
         return FunctionDeclarationNode(typ, name, args, statements)
+
+    def function_definition_argument_list(self):
+        self.eat(LPAREN)
+        self.eat(RPAREN)
+        return []
+
+    def compound_statement(self):
+        statements = []
+        self.eat(LBRACE)
+        while not self.token_is(RBRACE) and not self.token_is(EOF):
+            statements.append(self.statement())
+        self.eat(RBRACE)
+        return []
+
+    def statement(self):
+        return
 
     def argument_list(self):
         self.eat(LPAREN)
         self.eat(RPAREN)
         return []
 
-    def compound_statement(self):
-        self.eat(LBRACE)
-        self.eat(RBRACE)
-        return []
-        
-    
-
-
-
-
 ###############################################################################
 #                                                                             #
-#  INTERPRETER                                                                #
+#  SEMANTIC ANALYZER                                                          #
 #                                                                             #
 ###############################################################################
 
-#####################################
-# Base NodeVisitor                  #
-#####################################
+class SemanticAnalyzer(NodeVisitor):
+    def __init__(self):
+        self.symtab = SymbolTable()
 
-class NodeVisitor(object):
-    def visit(self, node):
-        method_name = 'visit_' + type(node).__name__
-        visitor = getattr(self, method_name, self.generic_visit)
-        return visitor(node)
+    def visit_Program(self, program):
+        for decl in program.decls:
+            if not program.symbol_table.has(decl.type):
+                raise_simple_error("main.ess", "Symbol " + decl.type + " was not declared")
 
     def generic_visit(self, node):
-        raise Exception('No visit_{} method'.format(type(node).__name__))
+        pass
 
-#####################################
-# Interpreter                       #
-#####################################
+###############################################################################
+#                                                                             #
+#  COMPILER                                                                   #
+#                                                                             #
+###############################################################################
 
-class Interpreter(NodeVisitor):
-    def __init__(self, parser):
-        self.parser = parser
+class Compiler:
+    def __init__(self, program):
+        self.program = program
+        self.result = ""
 
-    def interpret(self):
-        tree = self.parser.parse()
-        if tree is None:
-            return ''
-        return self.visit(tree)
+    def compile(self):
+        self.compile_functions()
+        return self.result
 
-    #####################
-    # Visitors          #
-    #####################
+    def compile_functions(self):
+        for decl in self.program.decls:
+            if isinstance(decl, FunctionDeclarationNode):
+                self.compile_function(decl)
 
-    def visit_NumberNode(self, node):
-        return node.value
-
-    def visit_BinOpNode(self, node):
-        if node.op.type == PLUS:
-            return self.visit(node.left) + self.visit(node.right)
-        elif node.op.type == MINUS:
-            return self.visit(node.left) - self.visit(node.right)
-        elif node.op.type == MUL:
-            return self.visit(node.left) * self.visit(node.right)
-        elif node.op.type == DIV:
-            return self.visit(node.left) / self.visit(node.right)
-        elif node.op.type == CARET:
-            return self.visit(node.left) ** self.visit(node.right)
-
-    def visit_UnaryOpNode(self, node):
-        op = node.op.type
-        if op == PLUS:
-            return +self.visit(node.expr)
-        elif op == MINUS:
-            return -self.visit(node.expr)
+    def compile_function(self, func):
+        result = ""
+        if func.type == "void":
+            result += "void"
+        result += " " + func.name + "(){}"
+        self.result += result + "\n"
+        
 
 ###############################################################################
 #                                                                             #
@@ -400,10 +453,23 @@ if __name__ == '__main__':
 
     lexer = Lexer(data)
     parser = Parser(lexer)
-    result = parser.parse()
+    program = parser.parse()
 
     import json
-    print json.dumps(result, default=lambda o: o.__dict__, indent=4, sort_keys=True)
+    print json.dumps(program, default=lambda o: o.__dict__, indent=4, sort_keys=True)
     print
+
+    SemanticAnalyzer().visit(program)
+    compiler = Compiler(program)
+    result = compiler.compile()
+
+    dir_ = "project/build/c"
+
+    if not os.path.exists(dir_):
+        os.makedirs(dir_)
+
+    f = open(dir_ + "/main.c", "w")
+    f.write(result)
+    f.close()
 
     os.system("pause")
