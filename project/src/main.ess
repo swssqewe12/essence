@@ -3,7 +3,7 @@ void func()
 	
 }
 
-void func2()
+func func2()
 {
 
 }

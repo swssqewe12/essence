@@ -199,6 +199,14 @@ class FunctionSymbol(Symbol):
     def __init__(self, name, typ):
         Symbol.__init__(self, name, typ)
 
+def get_symbol_type(symbol):
+    if isinstance(symbol, VarSymbol):
+        return "variable symbol"
+    if isinstance(symbol, BuiltInTypeSymbol):
+        return "built-in type symbol"
+    if isinstance(symbol, FunctionSymbol):
+        return "function symbol"
+
 TYPE_VOID = BuiltInTypeSymbol("void")
 
 ###############################################################################
@@ -358,8 +366,12 @@ class SemanticAnalyzer(NodeVisitor):
 
     def visit_Program(self, program):
         for decl in program.decls:
-            if not program.symbol_table.has(decl.type):
-                raise_simple_error("main.ess", "Symbol " + decl.type + " was not declared")
+            if isinstance(decl, FunctionDeclarationNode):
+                if not program.symbol_table.has(decl.type):
+                    raise_simple_error("main.ess", "Symbol `" + decl.type + "` was not declared")
+                symbol = program.symbol_table.get(decl.type)
+                if not isinstance(symbol, BuiltInTypeSymbol):
+                    raise_simple_error("main.ess", "Expected built-in type symbol but instead got " + get_symbol_type(symbol) + " `" + decl.type + "`")
 
     def generic_visit(self, node):
         pass
@@ -388,6 +400,8 @@ class Compiler:
         result = ""
         if func.type == "void":
             result += "void"
+        else:
+            raise Exception("Compiler doesn't support built-in type " + func.type)
         result += " " + func.name + "(){}"
         self.result += result + "\n"
         
