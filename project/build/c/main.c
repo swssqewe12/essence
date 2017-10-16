@@ -1,1 +1,1 @@
-void func(){}
+int greg(){}

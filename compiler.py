@@ -205,7 +205,8 @@ def get_symbol_type(symbol):
     if isinstance(symbol, FunctionSymbol):
         return "function symbol"
 
-TYPE_VOID = BuiltInTypeSymbol("void")
+TYPE_VOID   = BuiltInTypeSymbol("void")
+TYPE_INT    = BuiltInTypeSymbol("int")
 
 ###############################################################################
 #                                                                             #
@@ -235,6 +236,7 @@ class Program(AST):
         self.decls = decls
         self.symbol_table = SymbolTable()
         self.symbol_table.add(TYPE_VOID)
+        self.symbol_table.add(TYPE_INT)
         
         for decl in decls:
             if isinstance(decl, FunctionDeclarationNode):
@@ -400,6 +402,8 @@ class Compiler:
         result = ""
         if func.type.value == "void":
             result += "void"
+        elif func.type.value == "int":
+            result += "int"
         else:
             raise Exception("Compiler doesn't support built-in type " + func.type.value)
         result += " " + func.name.value + "(){}"
