@@ -1,7 +1,6 @@
-int greg(){
-
-
-
-
+void main()
+{
 
 }
+
+int myint = 47;

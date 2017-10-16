@@ -28,11 +28,13 @@ import string
 ##EOF        =    'EOF'
 
 IDENTIFIER  =   'IDENTIFIER'
-KEYWORD     =   'KEYWORD'
+INTEGER     =   'INTEGER'
+FLOAT       =   'FLOAT'
 LPAREN      =   'LPAREN'
 RPAREN      =   'RPAREN'
 LBRACE      =   'LBRACE'
 RBRACE      =   'RBRACE'
+EQUALS      =   'EQUALS'
 SEMI        =   'SEMI'
 EOF         =   'EOF'
 
@@ -91,6 +93,25 @@ class Lexer(object):
             self.advance()
 
         return result
+
+    def number(self):
+
+        has_decimal_point = False
+        digits = map(lambda x:str(x), list(range(10))) + ['.']
+
+        result = ""
+
+        while self.current_char in digits:
+            result += self.current_char
+            if self.current_char == '.':
+                if not has_decimal_point:
+                    has_decimal_point = True
+                else:
+                    raise_error("main.ess", "Failed to create token. Float can not have more than one decimal point.", self.text, self.pos)
+            self.advance()
+
+        return result, has_decimal_point
+            
             
 
     def get_next_token(self):
@@ -98,6 +119,7 @@ class Lexer(object):
         while self.current_char is not None:
 
             letters = list(string.ascii_uppercase + string.ascii_lowercase)
+            digits = map(lambda x:str(x), list(range(10)))
 
             if self.current_char.isspace():
                 self.skip_whitespace()
@@ -119,12 +141,23 @@ class Lexer(object):
                 self.advance()
                 return Token(RBRACE, '}')
 
+            if self.current_char == '=':
+                self.advance()
+                return Token(EQUALS, '=')
+
             if self.current_char == ';':
                 self.advance()
                 return Token(SEMI, ';')
 
             if self.current_char in letters:
                 return Token(IDENTIFIER, self.identifier())
+
+            if self.current_char in digits:
+                number, is_float = self.number()
+                if is_float:
+                    return Token(FLOAT, number)
+                else:
+                    return Token(INTEGER, number)
 
 ##            if self.current_char.isdigit():
 ##                return Token(INTEGER, self.integer())
@@ -256,10 +289,20 @@ class FunctionCallNode(Node):
         self.name = name
         self.params = params
 
-##class NumberNode(Node):
-##    def __init__(self, token):
-##        self.token = token
-##        self.value = token.value
+class VariableDeclarationNode(Node):
+    def __init__(self, typ, name, expr = None):
+        self.type = typ
+        self.name = name
+        self.expr = expr
+
+        if expr == None:
+            if self.type.value == 'int':
+                self.expr = NumberNode(Token(INTEGER, "0"))
+
+class NumberNode(Node):
+    def __init__(self, token):
+        self.token = token
+
 ##
 ##class BinOpNode(Node):
 ##    def __init__(self, left, op, right):
@@ -331,6 +374,15 @@ class Parser(object):
     def declaration(self):
         typ = self.eat(IDENTIFIER)
         name = self.eat(IDENTIFIER)
+        
+        if self.tryeat(EQUALS):
+            expr = self.expr()
+            self.eat(SEMI)
+            return VariableDeclarationNode(typ, name, expr)
+        
+        if self.tryeat(SEMI):
+            return VariableDeclarationNode(typ, name)
+        
         args = self.function_definition_argument_list()
         statements = self.compound_statement()
         return FunctionDeclarationNode(typ, name, args, statements)
@@ -356,6 +408,9 @@ class Parser(object):
         self.eat(RPAREN)
         return []
 
+    def expr(self):
+        return NumberNode(self.eat(INTEGER))
+
 ###############################################################################
 #                                                                             #
 #  SEMANTIC ANALYZER                                                          #
@@ -368,12 +423,13 @@ class SemanticAnalyzer(NodeVisitor):
 
     def visit_Program(self, program):
         for decl in program.decls:
-            if isinstance(decl, FunctionDeclarationNode):
+            if isinstance(decl, FunctionDeclarationNode) or isinstance(decl, VariableDeclarationNode):
                 if not program.symbol_table.has(decl.type.value):
                     raise_error("main.ess", "Symbol `" + decl.type.value + "` was not declared", data, decl.type.lexer_pos)
                 symbol = program.symbol_table.get(decl.type.value)
                 if not isinstance(symbol, BuiltInTypeSymbol):
                     raise_error("main.ess", "Expected built-in type but instead got " + get_symbol_type(symbol) + " `" + symbol.name + "`", data, decl.type.lexer_pos)
+        
 
     def generic_visit(self, node):
         pass
@@ -390,6 +446,7 @@ class Compiler:
         self.result = ""
 
     def compile(self):
+        self.compile_variables()
         self.compile_functions()
         return self.result
 
@@ -398,6 +455,11 @@ class Compiler:
             if isinstance(decl, FunctionDeclarationNode):
                 self.compile_function(decl)
 
+    def compile_variables(self):
+        for decl in self.program.decls:
+            if isinstance(decl, VariableDeclarationNode):
+                self.compile_variable(decl)
+
     def compile_function(self, func):
         result = ""
         if func.type.value == "void":
@@ -405,8 +467,19 @@ class Compiler:
         elif func.type.value == "int":
             result += "int"
         else:
-            raise Exception("Compiler doesn't support built-in type " + func.type.value)
+            raise Exception("Compiler doesn't support built-in type " + func.type.value + " as a function type")
         result += " " + func.name.value + "(){}"
+        self.result += result + "\n"
+
+    def compile_variable(self, var):
+        result = ""
+        if var.type.value == "void":
+            raise_error("main.ess", "Variables cannot be declared with type `void`", data, var.type.lexer_pos)
+        if var.type.value == "int":
+            result += "int"
+        else:
+            raise Exception("Compiler doesn't support built-in type " + func.type.value + " as a variable type")
+        result += " " + var.name.value + "=" + var.expr.token.value + ";"
         self.result += result + "\n"
         
 

@@ -1,1 +1,2 @@
-int greg(){}
+int myint=47;
+void main(){}
