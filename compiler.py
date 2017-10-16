@@ -203,7 +203,7 @@ def get_symbol_type(symbol):
     if isinstance(symbol, VarSymbol):
         return "variable symbol"
     if isinstance(symbol, BuiltInTypeSymbol):
-        return "built-in type symbol"
+        return "built-in type"
     if isinstance(symbol, FunctionSymbol):
         return "function symbol"
 
@@ -371,7 +371,7 @@ class SemanticAnalyzer(NodeVisitor):
                     raise_simple_error("main.ess", "Symbol `" + decl.type + "` was not declared")
                 symbol = program.symbol_table.get(decl.type)
                 if not isinstance(symbol, BuiltInTypeSymbol):
-                    raise_simple_error("main.ess", "Expected built-in type symbol but instead got " + get_symbol_type(symbol) + " `" + decl.type + "`")
+                    raise_simple_error("main.ess", "Expected built-in type but instead got " + get_symbol_type(symbol) + " `" + decl.type + "`")
 
     def generic_visit(self, node):
         pass
