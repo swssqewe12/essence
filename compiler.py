@@ -82,7 +82,7 @@ class Lexer(object):
     def identifier(self):
 
         letters = list(string.ascii_uppercase + string.ascii_lowercase)
-        digits = list(range(10))
+        digits = map(lambda x:str(x), list(range(10)))
 
         result = ""
 
