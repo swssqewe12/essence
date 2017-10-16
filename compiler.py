@@ -240,7 +240,7 @@ class Program(AST):
         
         for decl in decls:
             if isinstance(decl, FunctionDeclarationNode):
-                self.symbol_table.add(FunctionSymbol(decl.name, decl.type))
+                self.symbol_table.add(FunctionSymbol(decl.name.value, decl.type.value))
 
 class FunctionDeclarationNode(Node):
     def __init__(self, typ, name, args, statements):
@@ -289,7 +289,7 @@ class Parser(object):
         return False
 
     def eat(self, *token_types):
-        value = self.current_token.value
+        value = self.current_token
         if not token_types:
             self.current_token = self.lexer.get_next_token()
             return value
@@ -367,11 +367,11 @@ class SemanticAnalyzer(NodeVisitor):
     def visit_Program(self, program):
         for decl in program.decls:
             if isinstance(decl, FunctionDeclarationNode):
-                if not program.symbol_table.has(decl.type):
-                    raise_simple_error("main.ess", "Symbol `" + decl.type + "` was not declared")
-                symbol = program.symbol_table.get(decl.type)
+                if not program.symbol_table.has(decl.type.value):
+                    raise_simple_error("main.ess", "Symbol `" + decl.type.value + "` was not declared")
+                symbol = program.symbol_table.get(decl.type.value)
                 if not isinstance(symbol, BuiltInTypeSymbol):
-                    raise_simple_error("main.ess", "Expected built-in type but instead got " + get_symbol_type(symbol) + " `" + decl.type + "`")
+                    raise_simple_error("main.ess", "Expected built-in type but instead got " + get_symbol_type(symbol) + " `" + symbol.name + "`")
 
     def generic_visit(self, node):
         pass
@@ -398,11 +398,11 @@ class Compiler:
 
     def compile_function(self, func):
         result = ""
-        if func.type == "void":
+        if func.type.value == "void":
             result += "void"
         else:
-            raise Exception("Compiler doesn't support built-in type " + func.type)
-        result += " " + func.name + "(){}"
+            raise Exception("Compiler doesn't support built-in type " + func.type.value)
+        result += " " + func.name.value + "(){}"
         self.result += result + "\n"
         
 
