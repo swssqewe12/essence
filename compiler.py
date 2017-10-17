@@ -33,13 +33,11 @@ CARET       =   'CARET'
 COMMA       =   'COMMA'
 EOF         =   'EOF'
 
-lexer_pos = 0
-
 class Token(object):
     def __init__(self, typ, val):
         self.type = typ
         self.value = val
-        self.lexer_pos = lexer_pos
+        self.pos = lexer.pos
 
 #####################################
 # Lexer                             #
@@ -47,19 +45,15 @@ class Token(object):
 
 class Lexer(object):
     def __init__(self, text):
-        global lexer_pos
         self.text = text
         self.pos = 0
-        lexer_pos = self.pos
         self.current_char = self.text[self.pos]
 
     def error(self):
         raise_error("main.ess", "Illegal character", self.text, self.pos)
 
     def advance(self):
-        global lexer_pos
         self.pos += 1
-        lexer_pos = self.pos
         if self.pos > len(self.text) - 1:
             self.current_char = None
         else:
@@ -258,7 +252,7 @@ class Program(AST):
         for decl in decls:
 
             if self.symbol_table.has(decl.name.value):
-                raise_error("main.ess", "Symbol `" + decl.name.value + "` has already been defined", data, decl.name.lexer_pos)
+                raise_error("main.ess", "Symbol `" + decl.name.value + "` has already been defined", data, decl.name.pos)
             
             if isinstance(decl, FunctionDeclarationNode):
                 self.symbol_table.add(FunctionSymbol(decl.name.value, decl.type.value))
@@ -290,7 +284,7 @@ class VariableDeclarationNode(Node):
             elif self.type.value == 'float':
                 self.expr = ExpressionNode(NumberNode(Token(FLOAT, "0.0")))
             elif self.type.value == "void":
-                raise_error("main.ess", "Variables cannot be declared with type `void`", data, self.type.lexer_pos)
+                raise_error("main.ess", "Variables cannot be declared with type `void`", data, self.type.pos)
 
 class ExpressionNode(Node):
     def __init__(self, expr):
@@ -324,7 +318,7 @@ class Parser(object):
         self.current_token = self.lexer.get_next_token()
 
     def error(self):
-        raise_error("main.ess", "Invalid syntax", self.lexer.text, self.current_token.lexer_pos)
+        raise_error("main.ess", "Invalid syntax", self.lexer.text, self.current_token.pos)
 
     def tryeat(self, token_type):
         if self.current_token.type == token_type:
@@ -505,10 +499,10 @@ class SemanticAnalyzer(NodeVisitor):
         for decl in program.decls:
             if isinstance(decl, FunctionDeclarationNode) or isinstance(decl, VariableDeclarationNode):
                 if not program.symbol_table.has(decl.type.value):
-                    raise_error("main.ess", "Symbol `" + decl.type.value + "` was not declared", data, decl.type.lexer_pos)
+                    raise_error("main.ess", "Symbol `" + decl.type.value + "` was not declared", data, decl.type.pos)
                 symbol = program.symbol_table.get(decl.type.value)
                 if not isinstance(symbol, BuiltInTypeSymbol):
-                    raise_error("main.ess", "Expected built-in type but instead got " + get_symbol_type(symbol) + " `" + symbol.name + "`", data, decl.type.lexer_pos)
+                    raise_error("main.ess", "Expected built-in type but instead got " + get_symbol_type(symbol) + " `" + symbol.name + "`", data, decl.type.pos)
 
     def visit_ExpressionNode(self, expression):
         temp = self.expr_type(expression.expr)
@@ -529,7 +523,7 @@ class SemanticAnalyzer(NodeVisitor):
             right_type = self.expr_type(expr.right)
 
             if left_type != right_type:
-                raise_error("main.ess", "Cannot concatenate `" + left_type + "` and `" + right_type + "`", data, expr.token.lexer_pos)
+                raise_error("main.ess", "Cannot concatenate `" + left_type + "` and `" + right_type + "`", data, expr.token.pos)
 
             return left_type
 
@@ -599,10 +593,10 @@ class Compiler:
 
     def variable(self, var):
         if var.type.value != var.expr.type:
-            raise_error("main.ess", "Variable with type `" + var.type.value + "` cannot be assigned to type `" + var.expr.type + "`", data, var.type.lexer_pos)
+            raise_error("main.ess", "Variable with type `" + var.type.value + "` cannot be assigned to type `" + var.expr.type + "`", data, var.type.pos)
         
         if var.type.value == "void":
-            raise_error("main.ess", "Variables cannot be declared with type `void`", data, var.type.lexer_pos)
+            raise_error("main.ess", "Variables cannot be declared with type `void`", data, var.type.pos)
         elif var.type.value == "int":
             self.result += "int"
         elif var.type.value == "float":
