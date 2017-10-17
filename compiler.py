@@ -17,16 +17,6 @@ import string
 # Tokens                            #
 #####################################
 
-##INTEGER    =    'INTEGER'
-##PLUS       =    'PLUS'
-##MINUS      =    'MINUS'
-##MUL        =    'MUL'
-##DIV        =    'DIV'
-##CARET      =    'CARET'
-##LPAREN     =    'LPAREN'
-##RPAREN     =    'RPAREN'
-##EOF        =    'EOF'
-
 IDENTIFIER  =   'IDENTIFIER'
 INTEGER     =   'INTEGER'
 FLOAT       =   'FLOAT'
@@ -78,13 +68,6 @@ class Lexer(object):
     def skip_whitespace(self):
         while self.current_char is not None and self.current_char.isspace():
             self.advance()
-
-##    def integer(self):
-##        result = ''
-##        while self.current_char is not None and self.current_char.isdigit():
-##            result += self.current_char
-##            self.advance()
-##        return int(result)
 
     def identifier(self):
 
@@ -183,37 +166,6 @@ class Lexer(object):
                     return Token(FLOAT, number)
                 else:
                     return Token(INTEGER, number)
-
-##            if self.current_char.isdigit():
-##                return Token(INTEGER, self.integer())
-##
-##            if self.current_char == '+':
-##                self.advance()
-##                return Token(PLUS, '+')
-##
-##            if self.current_char == '-':
-##                self.advance()
-##                return Token(MINUS, '-')
-##
-##            if self.current_char == '*':
-##                self.advance()
-##                return Token(MUL, '*')
-##
-##            if self.current_char == '/':
-##                self.advance()
-##                return Token(DIV, '/')
-##
-##            if self.current_char == '^':
-##                self.advance()
-##                return Token(CARET, '^')
-##
-##            if self.current_char == '(':
-##                self.advance()
-##                return Token(LPAREN, '(')
-##
-##            if self.current_char == ')':
-##                self.advance()
-##                return Token(RPAREN, ')')
 
             self.error()
 
