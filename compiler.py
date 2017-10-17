@@ -297,10 +297,15 @@ class Program(AST):
         self.symbol_table.add(TYPE_INT)
         
         for decl in decls:
+
+            if self.symbol_table.has(decl.name.value):
+                raise_error("main.ess", "Symbol `" + decl.name.value + "` has already been defined", data, decl.name.lexer_pos)
+            
             if isinstance(decl, FunctionDeclarationNode):
-                if self.symbol_table.has(decl.name.value):
-                    raise_error("main.ess", "Symbol `" + decl.name.value + "` has already been defined", data, decl.name.lexer_pos)
                 self.symbol_table.add(FunctionSymbol(decl.name.value, decl.type.value))
+            
+            elif isinstance(decl, VariableDeclarationNode):
+                self.symbol_table.add(VarSymbol(decl.name.value, decl.type.value))
 
 class FunctionDeclarationNode(Node):
     def __init__(self, typ, name, args, statements):

@@ -1,4 +1,6 @@
-void helloWorld()
+int myint;
+
+myint hello()
 {
-	bool readonly = true;
+
 }
