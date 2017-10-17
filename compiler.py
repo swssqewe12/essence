@@ -34,10 +34,13 @@ COMMA       =   'COMMA'
 EOF         =   'EOF'
 
 class Token(object):
-    def __init__(self, typ, val):
+    def __init__(self, typ, val=""):
         self.type = typ
         self.value = val
         self.pos = lexer.pos
+    def val(self, val):
+        self.value = val
+    
 
 #####################################
 # Lexer                             #
@@ -106,62 +109,82 @@ class Lexer(object):
                 continue
 
             if self.current_char == '(':
+                token = Token(LPAREN, '(')
                 self.advance()
-                return Token(LPAREN, '(')
+                return token
 
             if self.current_char == ')':
+                token = Token(RPAREN, ')')
                 self.advance()
-                return Token(RPAREN, ')')
+                return token
 
             if self.current_char == '{':
+                token = Token(LBRACE, '{')
                 self.advance()
-                return Token(LBRACE, '{')
+                return token
 
             if self.current_char == '}':
+                token = Token(RBRACE, '}')
                 self.advance()
-                return Token(RBRACE, '}')
+                return token
 
             if self.current_char == '=':
+                token = Token(EQUALS, '=')
                 self.advance()
-                return Token(EQUALS, '=')
+                return token
 
             if self.current_char == ';':
+                token = Token(SEMI, ';')
                 self.advance()
-                return Token(SEMI, ';')
+                return token
 
             if self.current_char == '+':
+                token = Token(PLUS, '+')
                 self.advance()
-                return Token(PLUS, '+')
+                return token
 
             if self.current_char == '-':
+                token = Token(MINUS, '-')
                 self.advance()
-                return Token(MINUS, '-')
+                return token
 
             if self.current_char == '*':
+                token = Token(MUL, '*')
                 self.advance()
-                return Token(MUL, '*')
+                return token
 
             if self.current_char == '/':
+                token = Token(DIV, '/')
                 self.advance()
-                return Token(DIV, '/')
+                return token
 
             if self.current_char == '^':
+                token = Token(CARET, '^')
                 self.advance()
-                return Token(CARET, '^')
+                return token
 
             if self.current_char == ',':
+                token = Token(COMMA, ',')
                 self.advance()
-                return Token(COMMA, ',')
+                return token
 
             if self.current_char in letters:
-                return Token(IDENTIFIER, self.identifier())
+                token = Token(IDENTIFIER)
+                token.val(self.identifier())
+                return token
 
             if self.current_char in digits:
+                float_token = Token(FLOAT)
+                int_token   = Token(INTEGER)
+                
                 number, is_float = self.number()
+                
                 if is_float:
-                    return Token(FLOAT, number)
+                    float_token.val(number)
+                    return float_token
                 else:
-                    return Token(INTEGER, number)
+                    int_token.val(number)
+                    return int_token
 
             self.error()
 
