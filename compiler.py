@@ -4,8 +4,7 @@
 #                                                                             #
 ###############################################################################
 
-import os
-import string
+import os, string, json
 
 ###############################################################################
 #                                                                             #
@@ -99,9 +98,7 @@ class Lexer(object):
                     raise_error("main.ess", "Failed to create token. Float can not have more than one decimal point.", self.text, self.pos)
             self.advance()
 
-        return result, has_decimal_point
-            
-            
+        return result, has_decimal_point  
 
     def get_next_token(self):
         
@@ -211,14 +208,6 @@ class BuiltInTypeSymbol(Symbol):
 class FunctionSymbol(Symbol):
     def __init__(self, name, typ):
         Symbol.__init__(self, name, typ)
-
-def get_symbol_type(symbol):
-    if isinstance(symbol, VarSymbol):
-        return "variable symbol"
-    if isinstance(symbol, BuiltInTypeSymbol):
-        return "built-in type"
-    if isinstance(symbol, FunctionSymbol):
-        return "function symbol"
 
 TYPE_VOID   = BuiltInTypeSymbol("void")
 TYPE_INT    = BuiltInTypeSymbol("int")
@@ -690,6 +679,14 @@ def raise_error(f, error, string, index):
     os.system("pause")
     exit(0)
 
+def get_symbol_type(symbol):
+    if isinstance(symbol, VarSymbol):
+        return "variable symbol"
+    if isinstance(symbol, BuiltInTypeSymbol):
+        return "built-in type"
+    if isinstance(symbol, FunctionSymbol):
+        return "function symbol"
+
 ###############################################################################
 #                                                                             #
 #  PROGRAM STARTS HERE                                                        #
@@ -709,7 +706,6 @@ if __name__ == '__main__':
     parser = Parser(lexer)
     program = parser.parse()
 
-    import json
     print json.dumps(program, default=lambda o: o.__dict__, indent=4, sort_keys=True)
     print
 
