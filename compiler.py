@@ -419,8 +419,8 @@ class Parser(object):
     def compound_statement(self):
         statements = []
         self.eat(LBRACE)
-        while not self.token_is(RBRACE) and not self.token_is(EOF):
-            statements.append(self.statement())
+        #while not self.token_is(RBRACE) and not self.token_is(EOF):
+        #    statements.append(self.statement())
         self.eat(RBRACE)
         return []
 
