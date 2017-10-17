@@ -1,1 +1,1 @@
-float a=(0.0);float b=(9.0);
+int a=(5);int b=(()+(6));

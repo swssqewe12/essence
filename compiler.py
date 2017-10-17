@@ -287,10 +287,10 @@ class Program(AST):
                 raise_error("main.ess", "Symbol `" + decl.name_tok.value + "` has already been defined", data, decl.name_tok.pos)
             
             if isinstance(decl, FunctionDeclarationNode):
-                self.symbol_table.add(FunctionSymbol(decl.name_tok.value, decl.type_tok.value))
+                self.symbol_table.add(FunctionSymbol(decl.name_tok.value, self.symbol_table.get(decl.type_tok.value)))
             
             elif isinstance(decl, VariableDeclarationNode):
-                self.symbol_table.add(VarSymbol(decl.name_tok.value, decl.type_tok.value))
+                self.symbol_table.add(VarSymbol(decl.name_tok.value, self.symbol_table.get(decl.type_tok.value)))
 
 class FunctionDeclarationNode(Node):
     def __init__(self, typ, name, args, statements):
@@ -334,6 +334,10 @@ class UnaryOpNode(Node):
     def __init__(self, op, node):
         self.op_tok = op
         self.node = node
+
+class VariableNode(Node):
+    def __init__(self, token):
+        self.name_tok = token
 
 #####################################
 # Parser                            #
@@ -449,7 +453,7 @@ class Parser(object):
         return NumberNode(self.eat(INTEGER))
 
     def factor(self):
-        "factor : (PLUS | MINUS) factor | INTEGER | FLOAT | LPAREN expr RPAREN"
+        "factor : (PLUS | MINUS) factor | INTEGER | FLOAT | IDENTIFIER | LPAREN expr RPAREN"
         
         token = self.current_token
 
@@ -460,6 +464,10 @@ class Parser(object):
         
         elif self.tryeat(INTEGER) or self.tryeat(FLOAT):
             return NumberNode(token)
+
+        elif self.tryeat(IDENTIFIER):
+            # currently assuming this is a variable not a function call
+            return VariableNode(token)
         
         elif self.tryeat(LPAREN):
             node = self.expr()
@@ -528,7 +536,7 @@ class SemanticAnalyzer(NodeVisitor):
 
     def visit_VariableDeclarationNode(self, decl, symbol_tables):
         self.visit_FunctionDeclarationNode_or_VariableDeclarationNode(decl, symbol_tables)
-        self.visit(decl.expr)
+        self.visit(decl.expr, symbol_tables)
 
     def visit_FunctionDeclarationNode_or_VariableDeclarationNode(self, decl, symbol_tables):
         if not symbol_tables.any_has(decl.type_tok.value):
@@ -539,24 +547,24 @@ class SemanticAnalyzer(NodeVisitor):
         if not isinstance(symbol, BuiltInTypeSymbol):
             raise_error("main.ess", "Expected built-in type but instead got " + get_symbol_type(symbol) + " `" + symbol.name + "`", data, decl.type_tok.pos)
 
-    def visit_ExpressionNode(self, expr):
-        expr.set_type(self.expr_type(expr.node))
+    def visit_ExpressionNode(self, expr, symbol_tables):
+        expr.set_type(self.expr_type(expr.node, symbol_tables))
 
     ###########################################################################
 
-    def expr_type(self, node):
+    def expr_type(self, node, symbol_tables):
         
         if isinstance(node, NumberNode):
             if node.token.type == INTEGER:
-                return "int"
+                return TYPE_INT
             elif node.token.type == FLOAT:
-                return "float"
+                return TYPE_FLOAT
             else:
                 raise Exception("SemanticAnalyzer.expr_type can not handle " + node.token.type + " NumberNodes")
 
         if isinstance(node, BinOpNode):
-            left_type = self.expr_type(node.left)
-            right_type = self.expr_type(node.right)
+            left_type = self.expr_type(node.left, symbol_tables)
+            right_type = self.expr_type(node.right, symbol_tables)
 
             if left_type != right_type:
                 raise_error("main.ess", "Cannot operate on `" + left_type + "` and `" + right_type + "`", data, node.token.pos)
@@ -564,7 +572,13 @@ class SemanticAnalyzer(NodeVisitor):
             return left_type
 
         if isinstance(node, UnaryOpNode):
-            return self.expr_type(node.node)
+            return self.expr_type(node.node, symbol_tables)
+
+        if isinstance(node, VariableNode):
+            var = symbol_tables.get(node.name_tok.value)
+            return var.type
+
+        raise Exception("SemanticAnalyzer.expr_type can not handle " + type(node).__name__)
             
 
     def generic_visit(self, node):
@@ -611,35 +625,37 @@ class Compiler:
     def functions(self):
         for decl in self.program.decls:
             if isinstance(decl, FunctionDeclarationNode):
-                self.function(decl)
+                self.function(decl, self.program.symbol_table.get(decl.name_tok.value))
 
     def variables(self):
         for decl in self.program.decls:
             if isinstance(decl, VariableDeclarationNode):
-                self.variable(decl)
+                self.variable(decl, self.program.symbol_table.get(decl.name_tok.value))
 
-    def function(self, func):
-        if func.type_tok.value == "void":
+    def function(self, func, symbol):
+        if symbol.type == TYPE_VOID:
             self.result += "void"
-        elif func.type_tok.value == "int":
+        elif symbol.type == TYPE_INT:
             self.result += "int"
+        elif symbol.type == TYPE_FLOAT:
+            self.result += "float"
         else:
             raise Exception("Compiler doesn't support built-in type " + func.type_tok.value + " as a function type")
-        self.result += " " + func.name_tok.value + "(){}"
+        self.result += " " + symbol.name + "(){}"
 
-    def variable(self, var):
-        if var.type_tok.value != var.expr.type:
-            raise_error("main.ess", "Variable with type `" + var.type_tok.value + "` cannot be assigned to type `" + var.expr.type + "`", data, var.type_tok.pos)
+    def variable(self, var, symbol):
+        if symbol.type != var.expr.type:
+            raise_error("main.ess", "Variable with type `" + symbol.type.name + "` cannot be assigned to type `" + var.expr.type.name + "`", data, var.type_tok.pos)
         
-        if var.type_tok.value == "void":
+        if symbol.type == TYPE_VOID:
             raise_error("main.ess", "Variables cannot be declared with type `void`", data, var.type_tok.pos)
-        elif var.type_tok.value == "int":
+        elif symbol.type == TYPE_INT:
             self.result += "int"
-        elif var.type_tok.value == "float":
+        elif symbol.type == TYPE_FLOAT:
             self.result += "float"
         else:
             raise Exception("Compiler doesn't support built-in type " + var.type_tok.value + " as a variable type")
-        self.result += " " + var.name_tok.value + "="
+        self.result += " " + symbol.name + "="
         self.result += self.expr(var.expr.node)
         self.result += ";"
 
@@ -659,7 +675,7 @@ class Compiler:
                 result += ")"
             else:
                 result += self.expr(node.left)
-                result += expr.op_tok.value
+                result += node.op_tok.value
                 result += self.expr(node.right)
         
         elif isinstance(node, UnaryOpNode):

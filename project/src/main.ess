@@ -1,1 +1,2 @@
-float a, b = 9.0;
+int a = 5;
+int b = a + 6;
