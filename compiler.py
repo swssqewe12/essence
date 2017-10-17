@@ -648,6 +648,7 @@ class Compiler:
 
         if isinstance(node, NumberNode):
             result += node.token.value
+        
         elif isinstance(node, BinOpNode):
             if node.op_tok.value == "^":
                 requirements["math"] = True
@@ -660,6 +661,10 @@ class Compiler:
                 result += self.expr(node.left)
                 result += expr.op_tok.value
                 result += self.expr(node.right)
+        
+        elif isinstance(node, UnaryOpNode):
+            result += node.op_tok.value
+            result += self.expr(node.node)
         
         result += ")"
         return result
