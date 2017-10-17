@@ -1,2 +1,1 @@
-#include <math.h>
-int myint=((47)*(pow((8),(2))));
+float mfloat=(4.7);

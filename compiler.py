@@ -217,6 +217,7 @@ def get_symbol_type(symbol):
 
 TYPE_VOID   = BuiltInTypeSymbol("void")
 TYPE_INT    = BuiltInTypeSymbol("int")
+TYPE_FLOAT  = BuiltInTypeSymbol("float")
 
 ###############################################################################
 #                                                                             #
@@ -258,6 +259,7 @@ class Program(AST):
         self.symbol_table = SymbolTable()
         self.symbol_table.add(TYPE_VOID)
         self.symbol_table.add(TYPE_INT)
+        self.symbol_table.add(TYPE_FLOAT)
         
         for decl in decls:
 
@@ -586,8 +588,10 @@ class Compiler:
             raise_error("main.ess", "Variables cannot be declared with type `void`", data, var.type.lexer_pos)
         elif var.type.value == "int":
             self.result += "int"
+        elif var.type.value == "float":
+            self.result += "float"
         else:
-            raise Exception("Compiler doesn't support built-in type " + func.type.value + " as a variable type")
+            raise Exception("Compiler doesn't support built-in type " + var.type.value + " as a variable type")
         self.result += " " + var.name.value + "="
         self.result += self.expr(var.expr.expr)
         self.result += ";"
