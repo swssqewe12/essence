@@ -459,7 +459,7 @@ class Parser(object):
         return NumberNode(self.eat(INTEGER))
 
     def factor(self):
-        "factor : (PLUS | MINUS) factor | INTEGER | LPAREN expr RPAREN"
+        "factor : (PLUS | MINUS) factor | INTEGER | FLOAT | LPAREN expr RPAREN"
         
         token = self.current_token
 
@@ -468,7 +468,7 @@ class Parser(object):
             node = UnaryOpNode(token, self.factor())
             return node
         
-        elif self.tryeat(INTEGER):
+        elif self.tryeat(INTEGER) or self.tryeat(FLOAT):
             return NumberNode(token)
         
         elif self.tryeat(LPAREN):
