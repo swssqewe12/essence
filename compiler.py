@@ -196,6 +196,26 @@ class Lexer(object):
 #                                                                             #
 ###############################################################################
 
+class SymbolTables:
+    def __init__(self, *args):
+        self.tables = []
+        for arg in args:
+            self.add(arg)
+
+    def add(self, table):
+        self.tables.append(table)
+
+    def any_has(self, name):
+        return any(table.has(name) for table in self.tables)
+
+    def get(self, name):
+        for table in reversed(self.tables):
+            symbol = table.get(name)
+            if symbol == None:
+                continue
+            return symbol
+        return None
+
 class SymbolTable:
     def __init__(self):
         self.symbols = {}
@@ -243,21 +263,21 @@ class Node(AST):
     pass
 
 class NodeVisitor(object):
-    def visit_all(self, tree):
-        self.visit(tree)
-        dict_ = tree.__dict__
-        for nodename in dict_: 
-            node = dict_[nodename]
-            if isinstance(node, Node):
-                self.visit_all(node)
-            elif isinstance(node, list):
-                for el in node:
-                    if isinstance(el, Node):
-                        self.visit_all(el)
-    def visit(self, node):
+##    def visit_all(self, tree):
+##        self.visit(tree)
+##        dict_ = tree.__dict__
+##        for nodename in dict_: 
+##            node = dict_[nodename]
+##            if isinstance(node, Node):
+##                self.visit_all(node)
+##            elif isinstance(node, list):
+##                for el in node:
+##                    if isinstance(el, Node):
+##                        self.visit_all(el)
+    def visit(self, node, *args):
         method_name = 'visit_' + type(node).__name__
         visitor = getattr(self, method_name, self.generic_visit)
-        return visitor(node)
+        return visitor(node, *args)
 
     def generic_visit(self, node):
         raise Exception('No visit_{} method'.format(type(node).__name__))
@@ -515,21 +535,34 @@ class Parser(object):
 ###############################################################################
 
 class SemanticAnalyzer(NodeVisitor):
-    def __init__(self):
-        self.symtab = SymbolTable()
-
+    
     def visit_Program(self, program):
+        tables = SymbolTables()
+        tables.add(program.symbol_table)
+        
         for decl in program.decls:
-            if isinstance(decl, FunctionDeclarationNode) or isinstance(decl, VariableDeclarationNode):
-                if not program.symbol_table.has(decl.type.value):
-                    raise_error("main.ess", "Symbol `" + decl.type.value + "` was not declared", data, decl.type.pos)
-                symbol = program.symbol_table.get(decl.type.value)
-                if not isinstance(symbol, BuiltInTypeSymbol):
-                    raise_error("main.ess", "Expected built-in type but instead got " + get_symbol_type(symbol) + " `" + symbol.name + "`", data, decl.type.pos)
+            self.visit(decl, tables)
+
+    def visit_FunctionDeclarationNode(self, decl, symbol_tables):
+        visit_FunctionDeclarationNode_or_VariableDeclarationNode()
+
+    def visit_VariableDeclarationNode(self, decl, symbol_tables):
+        self.visit_FunctionDeclarationNode_or_VariableDeclarationNode(decl, symbol_tables)
+        self.visit(decl.expr)
+
+    def visit_FunctionDeclarationNode_or_VariableDeclarationNode(self, decl, symbol_tables):
+        if not symbol_tables.any_has(decl.type.value):
+            raise_error("main.ess", "Symbol `" + decl.type.value + "` was not declared", data, decl.type.pos)
+        
+        symbol = symbol_tables.get(decl.type.value)
+        
+        if not isinstance(symbol, BuiltInTypeSymbol):
+            raise_error("main.ess", "Expected built-in type but instead got " + get_symbol_type(symbol) + " `" + symbol.name + "`", data, decl.type.pos)
 
     def visit_ExpressionNode(self, expression):
-        temp = self.expr_type(expression.expr)
-        expression.set_type(temp)
+        expression.set_type(self.expr_type(expression.expr))
+
+    ###########################################################################
 
     def expr_type(self, expr):
         
@@ -546,7 +579,7 @@ class SemanticAnalyzer(NodeVisitor):
             right_type = self.expr_type(expr.right)
 
             if left_type != right_type:
-                raise_error("main.ess", "Cannot concatenate `" + left_type + "` and `" + right_type + "`", data, expr.token.pos)
+                raise_error("main.ess", "Cannot operate on `" + left_type + "` and `" + right_type + "`", data, expr.token.pos)
 
             return left_type
 
@@ -726,7 +759,7 @@ if __name__ == '__main__':
     print json.dumps(program, default=lambda o: o.__dict__, indent=4, sort_keys=True)
     print
 
-    SemanticAnalyzer().visit_all(program)
+    SemanticAnalyzer().visit(program)
     compiler = Compiler(program)
     result = compiler.compile()
 
