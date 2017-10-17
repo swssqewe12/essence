@@ -36,6 +36,11 @@ LBRACE      =   'LBRACE'
 RBRACE      =   'RBRACE'
 EQUALS      =   'EQUALS'
 SEMI        =   'SEMI'
+PLUS       =    'PLUS'
+MINUS      =    'MINUS'
+MUL        =    'MUL'
+DIV        =    'DIV'
+CARET      =    'CARET'
 EOF         =   'EOF'
 
 lexer_pos = 0
@@ -148,6 +153,26 @@ class Lexer(object):
             if self.current_char == ';':
                 self.advance()
                 return Token(SEMI, ';')
+
+            if self.current_char == '+':
+                self.advance()
+                return Token(PLUS, '+')
+
+            if self.current_char == '-':
+                self.advance()
+                return Token(MINUS, '-')
+
+            if self.current_char == '*':
+                self.advance()
+                return Token(MUL, '*')
+
+            if self.current_char == '/':
+                self.advance()
+                return Token(DIV, '/')
+
+            if self.current_char == '^':
+                self.advance()
+                return Token(CARET, '^')
 
             if self.current_char in letters:
                 return Token(IDENTIFIER, self.identifier())
@@ -303,17 +328,16 @@ class NumberNode(Node):
     def __init__(self, token):
         self.token = token
 
-##
-##class BinOpNode(Node):
-##    def __init__(self, left, op, right):
-##        self.left = left
-##        self.token = self.op = op
-##        self.right = right
-##
-##class UnaryOpNode(Node):
-##    def __init__(self, op, expr):
-##        self.token = self.op = op
-##        self.expr = expr
+class BinOpNode(Node):
+    def __init__(self, left, op, right):
+        self.left = left
+        self.token = self.op = op
+        self.right = right
+
+class UnaryOpNode(Node):
+    def __init__(self, op, expr):
+        self.token = self.op = op
+        self.expr = expr
 
 #####################################
 # Parser                            #
@@ -411,6 +435,63 @@ class Parser(object):
     def expr(self):
         return NumberNode(self.eat(INTEGER))
 
+    def factor(self):
+        "factor : (PLUS | MINUS) factor | INTEGER | LPAREN expr RPAREN"
+        
+        token = self.current_token
+
+        if self.token_is(PLUS, MINUS):
+            self.eat()
+            node = UnaryOpNode(token, self.factor())
+            return node
+        
+        elif self.tryeat(INTEGER):
+            return NumberNode(token)
+        
+        elif self.tryeat(LPAREN):
+            node = self.expr()
+            self.eat(RPAREN)
+            return node
+
+    def power(self):
+        "power : factor (CARET factor)*"
+
+        node = self.factor()
+
+        while self.token_is(CARET):
+
+            token = self.current_token
+            self.eat()
+            node = BinOpNode(left=node, op=token, right=self.factor())
+
+        return node
+
+    def term(self):
+        "term : power ((MUL | DIV) power)*"
+
+        node = self.power()
+
+        while self.token_is(MUL, DIV):
+
+            token = self.current_token
+            self.eat()
+            node = BinOpNode(left=node, op=token, right=self.power())
+
+        return node
+
+    def expr(self):
+        "expr : term ((PLUS | MINUS) term)*"
+        
+        node = self.term()
+
+        while self.token_is(PLUS, MINUS):
+            
+            token = self.current_token
+            self.eat()
+            node = BinOpNode(left=node, op=token, right=self.term())
+
+        return node
+
 ###############################################################################
 #                                                                             #
 #  SEMANTIC ANALYZER                                                          #
@@ -440,47 +521,88 @@ class SemanticAnalyzer(NodeVisitor):
 #                                                                             #
 ###############################################################################
 
+#####################################
+# Requirements                      #
+#####################################
+
+requirements = {
+    "math": False
+}
+
+#####################################
+# Compiler                          #
+#####################################
+
 class Compiler:
     def __init__(self, program):
         self.program = program
         self.result = ""
 
     def compile(self):
-        self.compile_variables()
-        self.compile_functions()
+        self.variables()
+        self.functions()
+        self.requirements()
         return self.result
+    
+    ##########################################################################
 
-    def compile_functions(self):
+    def requirements(self):
+
+        if requirements["math"]:
+            self.result = "#include <math.h>\n" + self.result
+
+    ##########################################################################
+
+    def functions(self):
         for decl in self.program.decls:
             if isinstance(decl, FunctionDeclarationNode):
-                self.compile_function(decl)
+                self.function(decl)
 
-    def compile_variables(self):
+    def variables(self):
         for decl in self.program.decls:
             if isinstance(decl, VariableDeclarationNode):
-                self.compile_variable(decl)
+                self.variable(decl)
 
-    def compile_function(self, func):
-        result = ""
+    def function(self, func):
         if func.type.value == "void":
-            result += "void"
+            self.result += "void"
         elif func.type.value == "int":
-            result += "int"
+            self.result += "int"
         else:
             raise Exception("Compiler doesn't support built-in type " + func.type.value + " as a function type")
-        result += " " + func.name.value + "(){}"
-        self.result += result + "\n"
+        self.result += " " + func.name.value + "(){}"
 
-    def compile_variable(self, var):
-        result = ""
+    def variable(self, var):
         if var.type.value == "void":
             raise_error("main.ess", "Variables cannot be declared with type `void`", data, var.type.lexer_pos)
         if var.type.value == "int":
-            result += "int"
+            self.result += "int"
         else:
             raise Exception("Compiler doesn't support built-in type " + func.type.value + " as a variable type")
-        result += " " + var.name.value + "=" + var.expr.token.value + ";"
-        self.result += result + "\n"
+        self.result += " " + var.name.value + "="
+        self.result += self.expr(var.expr)
+        self.result += ";"
+
+    def expr(self, expr):
+        result = "("
+
+        if isinstance(expr, NumberNode):
+            result += expr.token.value
+        elif isinstance(expr, BinOpNode):
+            if expr.op.value == "^":
+                requirements["math"] = True
+                result += "pow("
+                result += self.expr(expr.left)
+                result += ","
+                result += self.expr(expr.right)
+                result += ")"
+            else:
+                result += self.expr(expr.left)
+                result += expr.op.value
+                result += self.expr(expr.right)
+        
+        result += ")"
+        return result
         
 
 ###############################################################################

@@ -1,6 +1,4 @@
-void main()
+void helloWorld()
 {
-
+	bool readonly = true;
 }
-
-int myint = 47;
