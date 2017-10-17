@@ -404,45 +404,80 @@ class Parser(object):
     def declarations(self):
         decls = []
         while self.token_is(IDENTIFIER):
-            for decl in self.declaration():
-                decls.append(decl)
+            decls += self.declaration()
         return decls
 
     def declaration(self):
-        typ = self.eat(IDENTIFIER)
-        name = self.eat(IDENTIFIER)
         decls = []
-        
-        if self.tryeat(EQUALS):
-            expr = self.expression()
-            while self.token_is(COMMA):
+        typ = self.eat(IDENTIFIER)
+
+        while True:
+
+            name = self.eat(IDENTIFIER)
+
+            if self.tryeat(EQUALS):
+                expr = self.expression()
+            else:
+                expr = None
+
+            if self.tryeat(COMMA):
                 decls.append(VariableDeclarationNode(typ, name, expr))
-                self.eat()
-                name = self.eat(IDENTIFIER)
-                expr = None
-                if self.tryeat(EQUALS):
-                    expr = self.expression()
-            self.eat(SEMI)
-            decls.append(VariableDeclarationNode(typ, name, expr))
-            return decls
-        
-        if self.tryeat(SEMI):
-            return [VariableDeclarationNode(typ, name)]
-        elif self.token_is(COMMA):
-            while self.token_is(COMMA):
-                decls.append(VariableDeclarationNode(typ, name))
-                self.eat()
-                name = self.eat(IDENTIFIER)
-                expr = None
-                if self.tryeat(EQUALS):
-                    expr = self.expression()
-            self.eat(SEMI)
-            decls.append(VariableDeclarationNode(typ, name, expr))
-            return decls
-        
-        args = self.function_definition_argument_list()
-        statements = self.compound_statement()
-        return [FunctionDeclarationNode(typ, name, args, statements)]
+                continue
+
+            if self.tryeat(SEMI):
+                decls.append(VariableDeclarationNode(typ, name, expr))
+                break
+
+            print "function!"
+
+            args = self.function_definition_argument_list()
+            statements = self.compound_statement()
+
+            decls.append(FunctionDeclarationNode(typ, name, args, statements))
+
+            if self.tryeat(COMMA):
+                continue
+
+            break
+
+        return decls
+            
+
+##    def declaration(self):
+##        typ = self.eat(IDENTIFIER)
+##        name = self.eat(IDENTIFIER)
+##        decls = []
+##        
+##        if self.tryeat(EQUALS):
+##            expr = self.expression()
+##            while self.token_is(COMMA):
+##                decls.append(VariableDeclarationNode(typ, name, expr))
+##                self.eat()
+##                name = self.eat(IDENTIFIER)
+##                expr = None
+##                if self.tryeat(EQUALS):
+##                    expr = self.expression()
+##            self.eat(SEMI)
+##            decls.append(VariableDeclarationNode(typ, name, expr))
+##            return decls
+##        
+##        if self.tryeat(SEMI):
+##            return [VariableDeclarationNode(typ, name)]
+##        elif self.token_is(COMMA):
+##            while self.token_is(COMMA):
+##                decls.append(VariableDeclarationNode(typ, name))
+##                self.eat()
+##                name = self.eat(IDENTIFIER)
+##                expr = None
+##                if self.tryeat(EQUALS):
+##                    expr = self.expression()
+##            self.eat(SEMI)
+##            decls.append(VariableDeclarationNode(typ, name, expr))
+##            return decls
+##        
+##        args = self.function_definition_argument_list()
+##        statements = self.compound_statement()
+##        return [FunctionDeclarationNode(typ, name, args, statements)]
 
     def function_definition_argument_list(self):
         self.eat(LPAREN)
@@ -544,7 +579,7 @@ class SemanticAnalyzer(NodeVisitor):
             self.visit(decl, tables)
 
     def visit_FunctionDeclarationNode(self, decl, symbol_tables):
-        visit_FunctionDeclarationNode_or_VariableDeclarationNode()
+        self.visit_FunctionDeclarationNode_or_VariableDeclarationNode(decl, symbol_tables)
 
     def visit_VariableDeclarationNode(self, decl, symbol_tables):
         self.visit_FunctionDeclarationNode_or_VariableDeclarationNode(decl, symbol_tables)
