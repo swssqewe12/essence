@@ -293,6 +293,10 @@ class VariableDeclarationNode(Node):
         if expr == None:
             if self.type.value == 'int':
                 self.expr = ExpressionNode(NumberNode(Token(INTEGER, "0")))
+            elif self.type.value == 'float':
+                self.expr = ExpressionNode(NumberNode(Token(FLOAT, "0.0")))
+            elif self.type.value == "void":
+                raise_error("main.ess", "Variables cannot be declared with type `void`", data, self.type.lexer_pos)
 
 class ExpressionNode(Node):
     def __init__(self, expr):

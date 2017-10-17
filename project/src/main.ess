@@ -1,1 +1,1 @@
-float mfloat = 4.7;
+float mfloat;
