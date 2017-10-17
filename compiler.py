@@ -556,7 +556,7 @@ class SemanticAnalyzer(NodeVisitor):
             right_type = self.expr_type(expr.right)
 
             if left_type != right_type:
-                raise_error("main.ess", "Cannot concatenate " + left_type + " and " + right_type, data, expr.token.lexer_pos)
+                raise_error("main.ess", "Cannot concatenate `" + left_type + "` and `" + right_type + "`", data, expr.token.lexer_pos)
 
             return left_type
 
