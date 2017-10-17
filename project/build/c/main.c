@@ -1,2 +1,2 @@
 #include <math.h>
-int davidAge=(pow((3),(5)));void main(){}
+int myint=((47)*(pow((8),(2))));

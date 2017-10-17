@@ -279,6 +279,17 @@ class Node(AST):
     pass
 
 class NodeVisitor(object):
+    def visit_all(self, tree):
+        self.visit(tree)
+        dict_ = tree.__dict__
+        for nodename in dict_: 
+            node = dict_[nodename]
+            if isinstance(node, Node):
+                self.visit_all(node)
+            elif isinstance(node, list):
+                for el in node:
+                    if isinstance(el, Node):
+                        self.visit_all(el)
     def visit(self, node):
         method_name = 'visit_' + type(node).__name__
         visitor = getattr(self, method_name, self.generic_visit)
@@ -327,7 +338,14 @@ class VariableDeclarationNode(Node):
 
         if expr == None:
             if self.type.value == 'int':
-                self.expr = NumberNode(Token(INTEGER, "0"))
+                self.expr = ExpressionNode(NumberNode(Token(INTEGER, "0")))
+
+class ExpressionNode(Node):
+    def __init__(self, expr):
+        self.expr = expr
+        self.type = None
+    def set_type(self, typ):
+        self.type = typ
 
 class NumberNode(Node):
     def __init__(self, token):
@@ -405,7 +423,7 @@ class Parser(object):
         name = self.eat(IDENTIFIER)
         
         if self.tryeat(EQUALS):
-            expr = self.expr()
+            expr = self.expression()
             self.eat(SEMI)
             return VariableDeclarationNode(typ, name, expr)
         
@@ -484,6 +502,9 @@ class Parser(object):
 
         return node
 
+    def expression(self):
+        return ExpressionNode(self.expr())
+
     def expr(self):
         "expr : term ((PLUS | MINUS) term)*"
         
@@ -515,7 +536,33 @@ class SemanticAnalyzer(NodeVisitor):
                 symbol = program.symbol_table.get(decl.type.value)
                 if not isinstance(symbol, BuiltInTypeSymbol):
                     raise_error("main.ess", "Expected built-in type but instead got " + get_symbol_type(symbol) + " `" + symbol.name + "`", data, decl.type.lexer_pos)
+
+    def visit_ExpressionNode(self, expression):
+        temp = self.expr_type(expression.expr)
+        expression.set_type(temp)
+
+    def expr_type(self, expr):
         
+        if isinstance(expr, NumberNode):
+            if expr.token.type == INTEGER:
+                return "int"
+            elif expr.token.type == FLOAT:
+                return "float"
+            else:
+                raise Exception("SemanticAnalyzer.expr_type can not handle " + expr.token.type + " NumberNodes")
+
+        if isinstance(expr, BinOpNode):
+            left_type = self.expr_type(expr.left)
+            right_type = self.expr_type(expr.right)
+
+            if left_type != right_type:
+                raise_error("main.ess", "Cannot concatenate " + left_type + " and " + right_type, data, expr.token.lexer_pos)
+
+            return left_type
+
+        if isinstance(expr, UnaryOpNode):
+            return self.expr_type(expr.expr)
+            
 
     def generic_visit(self, node):
         pass
@@ -578,14 +625,19 @@ class Compiler:
         self.result += " " + func.name.value + "(){}"
 
     def variable(self, var):
+        
+        print var.type.value, var.expr.type
+        if var.type.value != var.expr.type:
+            raise_error("main.ess", "Variable with type `" + var.type.value + "` cannot be assigned to type `" + var.expr.type + "`", data, var.type.lexer_pos)
+        
         if var.type.value == "void":
             raise_error("main.ess", "Variables cannot be declared with type `void`", data, var.type.lexer_pos)
-        if var.type.value == "int":
+        elif var.type.value == "int":
             self.result += "int"
         else:
             raise Exception("Compiler doesn't support built-in type " + func.type.value + " as a variable type")
         self.result += " " + var.name.value + "="
-        self.result += self.expr(var.expr)
+        self.result += self.expr(var.expr.expr)
         self.result += ";"
 
     def expr(self, expr):
@@ -677,7 +729,7 @@ if __name__ == '__main__':
     print json.dumps(program, default=lambda o: o.__dict__, indent=4, sort_keys=True)
     print
 
-    SemanticAnalyzer().visit(program)
+    SemanticAnalyzer().visit_all(program)
     compiler = Compiler(program)
     result = compiler.compile()
 

@@ -1,6 +1,1 @@
-int myint;
-
-myint hello()
-{
-
-}
+void myint = 6;
