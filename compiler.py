@@ -26,11 +26,12 @@ LBRACE      =   'LBRACE'
 RBRACE      =   'RBRACE'
 EQUALS      =   'EQUALS'
 SEMI        =   'SEMI'
-PLUS       =    'PLUS'
-MINUS      =    'MINUS'
-MUL        =    'MUL'
-DIV        =    'DIV'
-CARET      =    'CARET'
+PLUS        =   'PLUS'
+MINUS       =   'MINUS'
+MUL         =   'MUL'
+DIV         =   'DIV'
+CARET       =   'CARET'
+COMMA       =   'COMMA'
 EOF         =   'EOF'
 
 lexer_pos = 0
@@ -156,6 +157,10 @@ class Lexer(object):
             if self.current_char == '^':
                 self.advance()
                 return Token(CARET, '^')
+
+            if self.current_char == ',':
+                self.advance()
+                return Token(COMMA, ',')
 
             if self.current_char in letters:
                 return Token(IDENTIFIER, self.identifier())
@@ -373,24 +378,45 @@ class Parser(object):
     def declarations(self):
         decls = []
         while self.token_is(IDENTIFIER):
-            decls.append(self.declaration())
+            for decl in self.declaration():
+                decls.append(decl)
         return decls
 
     def declaration(self):
         typ = self.eat(IDENTIFIER)
         name = self.eat(IDENTIFIER)
+        decls = []
         
         if self.tryeat(EQUALS):
             expr = self.expression()
+            while self.token_is(COMMA):
+                decls.append(VariableDeclarationNode(typ, name, expr))
+                self.eat()
+                name = self.eat(IDENTIFIER)
+                expr = None
+                if self.tryeat(EQUALS):
+                    expr = self.expression()
             self.eat(SEMI)
-            return VariableDeclarationNode(typ, name, expr)
+            decls.append(VariableDeclarationNode(typ, name, expr))
+            return decls
         
         if self.tryeat(SEMI):
-            return VariableDeclarationNode(typ, name)
+            return [VariableDeclarationNode(typ, name)]
+        elif self.token_is(COMMA):
+            while self.token_is(COMMA):
+                decls.append(VariableDeclarationNode(typ, name))
+                self.eat()
+                name = self.eat(IDENTIFIER)
+                expr = None
+                if self.tryeat(EQUALS):
+                    expr = self.expression()
+            self.eat(SEMI)
+            decls.append(VariableDeclarationNode(typ, name, expr))
+            return decls
         
         args = self.function_definition_argument_list()
         statements = self.compound_statement()
-        return FunctionDeclarationNode(typ, name, args, statements)
+        return [FunctionDeclarationNode(typ, name, args, statements)]
 
     def function_definition_argument_list(self):
         self.eat(LPAREN)
@@ -583,8 +609,6 @@ class Compiler:
         self.result += " " + func.name.value + "(){}"
 
     def variable(self, var):
-        
-        print var.type.value, var.expr.type
         if var.type.value != var.expr.type:
             raise_error("main.ess", "Variable with type `" + var.type.value + "` cannot be assigned to type `" + var.expr.type + "`", data, var.type.lexer_pos)
         
