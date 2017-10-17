@@ -263,17 +263,6 @@ class Node(AST):
     pass
 
 class NodeVisitor(object):
-##    def visit_all(self, tree):
-##        self.visit(tree)
-##        dict_ = tree.__dict__
-##        for nodename in dict_: 
-##            node = dict_[nodename]
-##            if isinstance(node, Node):
-##                self.visit_all(node)
-##            elif isinstance(node, list):
-##                for el in node:
-##                    if isinstance(el, Node):
-##                        self.visit_all(el)
     def visit(self, node, *args):
         method_name = 'visit_' + type(node).__name__
         visitor = getattr(self, method_name, self.generic_visit)
@@ -441,43 +430,6 @@ class Parser(object):
             break
 
         return decls
-            
-
-##    def declaration(self):
-##        typ = self.eat(IDENTIFIER)
-##        name = self.eat(IDENTIFIER)
-##        decls = []
-##        
-##        if self.tryeat(EQUALS):
-##            expr = self.expression()
-##            while self.token_is(COMMA):
-##                decls.append(VariableDeclarationNode(typ, name, expr))
-##                self.eat()
-##                name = self.eat(IDENTIFIER)
-##                expr = None
-##                if self.tryeat(EQUALS):
-##                    expr = self.expression()
-##            self.eat(SEMI)
-##            decls.append(VariableDeclarationNode(typ, name, expr))
-##            return decls
-##        
-##        if self.tryeat(SEMI):
-##            return [VariableDeclarationNode(typ, name)]
-##        elif self.token_is(COMMA):
-##            while self.token_is(COMMA):
-##                decls.append(VariableDeclarationNode(typ, name))
-##                self.eat()
-##                name = self.eat(IDENTIFIER)
-##                expr = None
-##                if self.tryeat(EQUALS):
-##                    expr = self.expression()
-##            self.eat(SEMI)
-##            decls.append(VariableDeclarationNode(typ, name, expr))
-##            return decls
-##        
-##        args = self.function_definition_argument_list()
-##        statements = self.compound_statement()
-##        return [FunctionDeclarationNode(typ, name, args, statements)]
 
     def function_definition_argument_list(self):
         self.eat(LPAREN)
