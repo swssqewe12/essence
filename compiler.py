@@ -205,6 +205,9 @@ class SymbolTables:
     def add(self, table):
         self.tables.append(table)
 
+    def pop(self):
+        return self.tables.pop()
+
     def any_has(self, name):
         return any(table.has(name) for table in self.tables)
 
@@ -300,6 +303,19 @@ class FunctionDeclarationNode(Node):
         self.args = args
         self.decls = decls
         self.statements = statements
+        self.symbol_table = SymbolTable()
+
+        for decl in decls:
+
+            if self.symbol_table.has(decl.name_tok.value):
+                raise_error("main.ess", "Symbol `" + decl.name_tok.value + "` has already been defined", data, decl.name_tok.pos)
+            
+            if isinstance(decl, FunctionDeclarationNode):
+                raise_error("main.ess", "Cannot define function in other function", data, decl.type_tok.pos)
+                
+            elif isinstance(decl, VariableDeclarationNode):
+                self.symbol_table.add(VarSymbol(decl.name_tok.value, self.symbol_table.get(decl.type_tok.value)))
+
 
 class VariableDeclarationNode(Node):
     def __init__(self, typ, name):
@@ -552,8 +568,14 @@ class SemanticAnalyzer(NodeVisitor):
         for assignment in program.assignments:
             self.visit(assignment, tables)
 
-    def visit_FunctionDeclarationNode(self, decl, symbol_tables):
-        self.visit_FunctionDeclarationNode_or_VariableDeclarationNode(decl, symbol_tables)
+    def visit_FunctionDeclarationNode(self, func, symbol_tables):
+        self.visit_FunctionDeclarationNode_or_VariableDeclarationNode(func, symbol_tables)
+        symbol_tables.add(func.symbol_table)
+
+        for decl in func.decls:
+            self.visit(decl, symbol_tables)
+        
+        symbol_tables.pop()
 
     def visit_VariableDeclarationNode(self, decl, symbol_tables):
         self.visit_FunctionDeclarationNode_or_VariableDeclarationNode(decl, symbol_tables)
@@ -578,6 +600,9 @@ class SemanticAnalyzer(NodeVisitor):
 
     def visit_ExpressionNode(self, expr, symbol_tables):
         expr.set_type(self.expr_type(expr.node, symbol_tables))
+
+    def generic_visit(self, node):
+        pass
 
     ###########################################################################
 
@@ -608,10 +633,6 @@ class SemanticAnalyzer(NodeVisitor):
             return var.type
 
         raise Exception("SemanticAnalyzer.expr_type can not handle " + type(node).__name__)
-            
-
-    def generic_visit(self, node):
-        pass
 
 ###############################################################################
 #                                                                             #
@@ -676,8 +697,6 @@ class Compiler:
         self.result += " " + symbol.name + "(){"
 
         for decl in func.decls:
-            if not isinstance(decl, VariableDeclarationNode):
-                raise_error("main.ess", "Cannot compile function inside other function", data, decl.type_tok.pos)
             self.variable_decl(decl, self.program.symbol_table.get(decl.name_tok.value))
 
         self.result += "}"
