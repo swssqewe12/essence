@@ -741,6 +741,10 @@ class Compiler:
         for decl in func.decls:
             self.variable_decl(decl, symbol_tables.get(decl.name_tok.value))
 
+        for statement in func.statements:
+            if isinstance(statement, AssignmentNode):
+                self.variable_assignment(statement, symbol_tables.get(statement.name_tok.value))
+
         self.result += "}"
 
     def variable_decl(self, var, symbol):

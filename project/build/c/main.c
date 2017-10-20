@@ -1,1 +1,1 @@
-int a;a=(5);void test(){int b;}
+int a;a=(5);void test(){int b;b=((a)+(7));}
