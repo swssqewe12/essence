@@ -583,8 +583,8 @@ class SemanticAnalyzer(NodeVisitor):
         self.visit_FunctionDeclarationNode_or_VariableDeclarationNode(func, symbol_tables)
         symbol_tables.add(func.symbol_table)
 
-        for decl in func.decls:
-            self.visit(decl, symbol_tables)
+        for statement in func.statements:
+            self.visit(statement, symbol_tables)
         
         symbol_tables.pop()
 
@@ -601,10 +601,10 @@ class SemanticAnalyzer(NodeVisitor):
 
 
     def visit_FunctionDeclarationNode_or_VariableDeclarationNode(self, decl, symbol_tables):
-        if not symbol_tables.any_has(decl.type_tok.value):
-            raise_error("main.ess", "Symbol `" + decl.type_tok.value + "` not found", data, decl.type_tok.pos)
-        
         symbol = symbol_tables.get(decl.type_tok.value)
+        
+        if symbol == None:
+            raise_error("main.ess", "Symbol `" + decl.type_tok.value + "` not found", data, decl.type_tok.pos)
         
         if not isinstance(symbol, BuiltInTypeSymbol):
             raise_error("main.ess", "Expected built-in type but instead got " + get_symbol_type(symbol) + " `" + symbol.name + "`", data, decl.type_tok.pos)
@@ -617,7 +617,9 @@ class SemanticAnalyzer(NodeVisitor):
             if not expr.is_constant:
                 raise_error("main.ess", "Expected constant expression at root scope", data, expr.tok_pos)
 
-    def generic_visit(self, node):
+        self.visit(expr.node, symbol_tables)
+
+    def generic_visit(self, node, *args):
         pass
 
     ###########################################################################
@@ -646,6 +648,8 @@ class SemanticAnalyzer(NodeVisitor):
 
         if isinstance(node, VariableNode):
             var = symbol_tables.get(node.name_tok.value)
+            if var == None:
+                raise_error("main.ess", "Symbol `" + node.name_tok.value + "` not found", data, node.name_tok.pos)
             return var.type
 
         raise Exception("SemanticAnalyzer.expr_type can not handle " + type(node).__name__)
