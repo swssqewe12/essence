@@ -293,10 +293,11 @@ class Program(AST):
                 self.symbol_table.add(VarSymbol(decl.name_tok.value, self.symbol_table.get(decl.type_tok.value)))
 
 class FunctionDeclarationNode(Node):
-    def __init__(self, typ, name, args, statements):
+    def __init__(self, typ, name, args, decls, statements):
         self.type_tok = typ
         self.name_tok = name
         self.args = args
+        self.decls = decls
         self.statements = statements
 
 class VariableDeclarationNode(Node):
@@ -417,9 +418,9 @@ class Parser(object):
                 break
 
             args = self.function_definition_argument_list()
-            statements = self.compound_statement()
+            scope_decls, statements = self.compound_statement()
 
-            decls.append(FunctionDeclarationNode(typ, name, args, statements))
+            decls.append(FunctionDeclarationNode(typ, name, args, scope_decls, statements))
 
             if self.tryeat(COMMA):
                 continue
@@ -434,12 +435,13 @@ class Parser(object):
         return []
 
     def compound_statement(self):
+        decls = []
         statements = []
         self.eat(LBRACE)
-        #while not self.token_is(RBRACE) and not self.token_is(EOF):
-        #    statements.append(self.statement())
+        while not self.token_is(RBRACE):
+            decls += self.declaration()
         self.eat(RBRACE)
-        return []
+        return decls, statements
 
     def statement(self):
         return
@@ -630,7 +632,7 @@ class Compiler:
     def variables(self):
         for decl in self.program.decls:
             if isinstance(decl, VariableDeclarationNode):
-                self.variable(decl, self.program.symbol_table.get(decl.name_tok.value))
+                self.variable_decl(decl, self.program.symbol_table.get(decl.name_tok.value))
 
     def function(self, func, symbol):
         if symbol.type == TYPE_VOID:
@@ -643,7 +645,7 @@ class Compiler:
             raise Exception("Compiler doesn't support built-in type " + func.type_tok.value + " as a function type")
         self.result += " " + symbol.name + "(){}"
 
-    def variable(self, var, symbol):
+    def variable_decl(self, var, symbol):
         if symbol.type != var.expr.type:
             raise_error("main.ess", "Variable with type `" + symbol.type.name + "` cannot be assigned to type `" + var.expr.type.name + "`", data, var.type_tok.pos)
         

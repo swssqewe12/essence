@@ -1,2 +1,8 @@
 int a = 5;
 int b = a + 6;
+
+void main()
+{
+	int a = 17;
+    dsfdsf;
+}
