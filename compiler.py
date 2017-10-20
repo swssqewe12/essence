@@ -455,7 +455,9 @@ class Parser(object):
         statements = []
         self.eat(LBRACE)
         while not self.token_is(RBRACE):
-            decls += self.declaration()
+            decl, assignment = self.declaration()
+            decls += decl
+            statements += assignment
         self.eat(RBRACE)
         return decls, statements
 
@@ -671,7 +673,14 @@ class Compiler:
             self.result += "float"
         else:
             raise Exception("Compiler doesn't support built-in type " + func.type_tok.value + " as a function type")
-        self.result += " " + symbol.name + "(){}"
+        self.result += " " + symbol.name + "(){"
+
+        for decl in func.decls:
+            if not isinstance(decl, VariableDeclarationNode):
+                raise_error("main.ess", "Cannot compile function inside other function", data, decl.type_tok.pos)
+            self.variable_decl(decl, self.program.symbol_table.get(decl.name_tok.value))
+
+        self.result += "}"
 
     def variable_decl(self, var, symbol):
         if symbol.type == TYPE_VOID:
