@@ -1,2 +1,6 @@
 int a = 5;
-int b = a + 6;
+
+void test()
+{
+	int b = a + 7;
+}

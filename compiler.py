@@ -697,8 +697,9 @@ class Compiler:
         self.result = ""
 
     def compile(self):
-        self.variables()
-        self.functions()
+        symbol_tables = SymbolTables(self.program.symbol_table)
+        self.variables(symbol_tables)
+        self.functions(symbol_tables)
         self.requirements()
         return self.result
     
@@ -711,20 +712,22 @@ class Compiler:
 
     ##########################################################################
 
-    def functions(self):
+    def functions(self, symbol_tables):
         for decl in self.program.decls:
             if isinstance(decl, FunctionDeclarationNode):
-                self.function(decl, self.program.symbol_table.get(decl.name_tok.value))
+                symbol_tables.add(decl.symbol_table)
+                self.function(decl, symbol_tables.get(decl.name_tok.value), symbol_tables)
+                symbol_tables.pop()
 
-    def variables(self):
+    def variables(self, symbol_tables):
         for decl in self.program.decls:
             if isinstance(decl, VariableDeclarationNode):
-                self.variable_decl(decl, self.program.symbol_table.get(decl.name_tok.value))
+                self.variable_decl(decl, symbol_tables.get(decl.name_tok.value))
 
         for assignment in self.program.assignments:
-            self.variable_assignment(assignment, self.program.symbol_table.get(assignment.name_tok.value))
+            self.variable_assignment(assignment, symbol_tables.get(assignment.name_tok.value))
 
-    def function(self, func, symbol):
+    def function(self, func, symbol, symbol_tables):
         if symbol.type == TYPE_VOID:
             self.result += "void"
         elif symbol.type == TYPE_INT:
@@ -736,7 +739,7 @@ class Compiler:
         self.result += " " + symbol.name + "(){"
 
         for decl in func.decls:
-            self.variable_decl(decl, self.program.symbol_table.get(decl.name_tok.value))
+            self.variable_decl(decl, symbol_tables.get(decl.name_tok.value))
 
         self.result += "}"
 
