@@ -199,13 +199,16 @@ class Lexer(object):
 class SymbolTables:
     def __init__(self, *args):
         self.tables = []
+        self.length = 0
         for arg in args:
             self.add(arg)
 
     def add(self, table):
         self.tables.append(table)
+        self.length += 1
 
     def pop(self):
+        self.length -= 1
         return self.tables.pop()
 
     def any_has(self, name):
@@ -342,9 +345,12 @@ class ExpressionNode(Node):
     def __init__(self, node, pos):
         self.node = node
         self.type = None
+        self.is_constant = None
         self.tok_pos = pos
     def set_type(self, typ):
         self.type = typ
+    def set_constant(self, is_constant):
+        self.is_constant = is_constant
 
 class NumberNode(Node):
     def __init__(self, token):
@@ -607,6 +613,11 @@ class SemanticAnalyzer(NodeVisitor):
 
     def visit_ExpressionNode(self, expr, symbol_tables):
         expr.set_type(self.expr_type(expr.node, symbol_tables))
+        expr.set_constant(self.expr_is_constant(expr.node))
+
+        if symbol_tables.length == 1: # root scope
+            if not expr.is_constant:
+                raise_error("main.ess", "Expected constant expression at root scope", data, expr.tok_pos)
 
     def generic_visit(self, node):
         pass
@@ -640,6 +651,25 @@ class SemanticAnalyzer(NodeVisitor):
             return var.type
 
         raise Exception("SemanticAnalyzer.expr_type can not handle " + type(node).__name__)
+
+    def expr_is_constant(self, node):
+
+        if isinstance(node, NumberNode):
+            return True
+
+        elif isinstance(node, BinOpNode):
+            left_state = self.expr_is_constant(node.left)
+            right_state = self.expr_is_constant(node.right)
+
+            if left_state == False or right_state == False:
+                return False
+            return True
+
+        elif isinstance(node, UnaryOpNode):
+            return self.expr_is_constant(node.node)
+
+        elif isinstance(node, VariableNode):
+            return False
 
 ###############################################################################
 #                                                                             #
