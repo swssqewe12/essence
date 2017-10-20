@@ -681,6 +681,9 @@ class Compiler:
         elif isinstance(node, UnaryOpNode):
             result += node.op_tok.value
             result += self.expr(node.node)
+
+        elif isinstance(node, VariableNode):
+            result += node.name_tok.value
         
         result += ")"
         return result
