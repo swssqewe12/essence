@@ -1,1 +1,1 @@
-int a=(5);int b=((a)+(6));void main(){}
+int a;int b;a=(5);b=((a)+(6));void main(){}

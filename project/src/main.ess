@@ -4,5 +4,4 @@ int b = a + 6;
 void main()
 {
 	int a = 17;
-    dsfdsf;
 }

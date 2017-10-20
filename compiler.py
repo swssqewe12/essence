@@ -274,8 +274,9 @@ class NodeVisitor(object):
 #####################################
 
 class Program(AST):
-    def __init__(self, decls):
+    def __init__(self, decls, assignments):
         self.decls = decls
+        self.assignments = assignments
         self.symbol_table = SymbolTable()
         self.symbol_table.add(TYPE_VOID)
         self.symbol_table.add(TYPE_INT)
@@ -301,23 +302,24 @@ class FunctionDeclarationNode(Node):
         self.statements = statements
 
 class VariableDeclarationNode(Node):
-    def __init__(self, typ, name, expr = None):
+    def __init__(self, typ, name):
         self.type_tok = typ
         self.name_tok = name
-        self.expr = expr
-
-        if expr == None:
-            if self.type_tok.value == 'int':
-                self.expr = ExpressionNode(NumberNode(Token(INTEGER, "0")))
-            elif self.type_tok.value == 'float':
-                self.expr = ExpressionNode(NumberNode(Token(FLOAT, "0.0")))
-            elif self.type_tok.value == "void":
-                raise_error("main.ess", "Variables cannot be defined with type `void`", data, self.type_tok.pos)
+##        self.expr = expr
+##
+##        if expr == None:
+##            if self.type_tok.value == 'int':
+##                self.expr = ExpressionNode(NumberNode(Token(INTEGER, "0")))
+##            elif self.type_tok.value == 'float':
+##                self.expr = ExpressionNode(NumberNode(Token(FLOAT, "0.0")))
+##            elif self.type_tok.value == "void":
+##                raise_error("main.ess", "Variables cannot be defined with type `void`", data, self.type_tok.pos)
 
 class ExpressionNode(Node):
-    def __init__(self, node):
+    def __init__(self, node, pos):
         self.node = node
         self.type = None
+        self.tok_pos = pos
     def set_type(self, typ):
         self.type = typ
 
@@ -339,6 +341,11 @@ class UnaryOpNode(Node):
 class VariableNode(Node):
     def __init__(self, token):
         self.name_tok = token
+
+class AssignmentNode(Node):
+    def __init__(self, name_tok, expr):
+        self.name_tok = name_tok
+        self.expr = expr
 
 #####################################
 # Parser                            #
@@ -387,18 +394,27 @@ class Parser(object):
     #####################
 
     def program(self):
-        decls = self.declarations()
-        return Program(decls)
+        decls, assignments = self.declarations()
+        return Program(decls, assignments)
 
     def declarations(self):
         decls = []
+        assignments = []
         while self.token_is(IDENTIFIER):
-            decls += self.declaration()
-        return decls
+            decl, assignment = self.declaration()
+            decls += decl
+            assignments += assignment
+        return decls, assignments
 
     def declaration(self):
         decls = []
+        assignments = []
         typ = self.eat(IDENTIFIER)
+
+        def addvar():
+            decls.append(VariableDeclarationNode(typ, name))
+            if expr:
+                assignments.append(AssignmentNode(name, expr))
 
         while True:
 
@@ -410,11 +426,11 @@ class Parser(object):
                 expr = None
 
             if self.tryeat(COMMA):
-                decls.append(VariableDeclarationNode(typ, name, expr))
+                addvar()
                 continue
 
             if self.tryeat(SEMI):
-                decls.append(VariableDeclarationNode(typ, name, expr))
+                addvar()
                 break
 
             args = self.function_definition_argument_list()
@@ -427,7 +443,7 @@ class Parser(object):
 
             break
 
-        return decls
+        return decls, assignments
 
     def function_definition_argument_list(self):
         self.eat(LPAREN)
@@ -450,9 +466,6 @@ class Parser(object):
         self.eat(LPAREN)
         self.eat(RPAREN)
         return []
-
-    def expr(self):
-        return NumberNode(self.eat(INTEGER))
 
     def factor(self):
         "factor : (PLUS | MINUS) factor | INTEGER | FLOAT | IDENTIFIER | LPAREN expr RPAREN"
@@ -503,7 +516,8 @@ class Parser(object):
         return node
 
     def expression(self):
-        return ExpressionNode(self.expr())
+        pos = self.current_token.pos
+        return ExpressionNode(self.expr(), pos)
 
     def expr(self):
         "expr : term ((PLUS | MINUS) term)*"
@@ -533,12 +547,17 @@ class SemanticAnalyzer(NodeVisitor):
         for decl in program.decls:
             self.visit(decl, tables)
 
+        for assignment in program.assignments:
+            self.visit(assignment, tables)
+
     def visit_FunctionDeclarationNode(self, decl, symbol_tables):
         self.visit_FunctionDeclarationNode_or_VariableDeclarationNode(decl, symbol_tables)
 
     def visit_VariableDeclarationNode(self, decl, symbol_tables):
         self.visit_FunctionDeclarationNode_or_VariableDeclarationNode(decl, symbol_tables)
-        self.visit(decl.expr, symbol_tables)
+
+    def visit_AssignmentNode(self, assignment, symbol_tables):
+        self.visit(assignment.expr, symbol_tables)
 
     def visit_FunctionDeclarationNode_or_VariableDeclarationNode(self, decl, symbol_tables):
         if not symbol_tables.any_has(decl.type_tok.value):
@@ -634,6 +653,9 @@ class Compiler:
             if isinstance(decl, VariableDeclarationNode):
                 self.variable_decl(decl, self.program.symbol_table.get(decl.name_tok.value))
 
+        for assignment in self.program.assignments:
+            self.variable_assignment(assignment, self.program.symbol_table.get(assignment.name_tok.value))
+
     def function(self, func, symbol):
         if symbol.type == TYPE_VOID:
             self.result += "void"
@@ -646,9 +668,6 @@ class Compiler:
         self.result += " " + symbol.name + "(){}"
 
     def variable_decl(self, var, symbol):
-        if symbol.type != var.expr.type:
-            raise_error("main.ess", "Variable with type `" + symbol.type.name + "` cannot be assigned to type `" + var.expr.type.name + "`", data, var.type_tok.pos)
-        
         if symbol.type == TYPE_VOID:
             raise_error("main.ess", "Variables cannot be declared with type `void`", data, var.type_tok.pos)
         elif symbol.type == TYPE_INT:
@@ -657,7 +676,13 @@ class Compiler:
             self.result += "float"
         else:
             raise Exception("Compiler doesn't support built-in type " + var.type_tok.value + " as a variable type")
-        self.result += " " + symbol.name + "="
+        self.result += " " + symbol.name + ";"
+
+    def variable_assignment(self, var, symbol):
+        if symbol.type != var.expr.type:
+            raise_error("main.ess", "Variable with type `" + symbol.type.name + "` cannot be assigned to type `" + var.expr.type.name + "`", data, var.expr.tok_pos)
+
+        self.result += symbol.name + "="
         self.result += self.expr(var.expr.node)
         self.result += ";"
 
