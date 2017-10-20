@@ -559,9 +559,15 @@ class SemanticAnalyzer(NodeVisitor):
     def visit_AssignmentNode(self, assignment, symbol_tables):
         self.visit(assignment.expr, symbol_tables)
 
+        symbol = symbol_tables.get(assignment.name_tok.value)
+
+        if symbol.type != assignment.expr.type:
+            raise_error("main.ess", "Variable with type `" + symbol.type.name + "` cannot be assigned to type `" + assignment.expr.type.name + "`", data, assignment.expr.tok_pos)
+
+
     def visit_FunctionDeclarationNode_or_VariableDeclarationNode(self, decl, symbol_tables):
         if not symbol_tables.any_has(decl.type_tok.value):
-            raise_error("main.ess", "Symbol `" + decl.type_tok.value + "` was not defined", data, decl.type_tok.pos)
+            raise_error("main.ess", "Symbol `" + decl.type_tok.value + "` not found", data, decl.type_tok.pos)
         
         symbol = symbol_tables.get(decl.type_tok.value)
         
@@ -588,7 +594,7 @@ class SemanticAnalyzer(NodeVisitor):
             right_type = self.expr_type(node.right, symbol_tables)
 
             if left_type != right_type:
-                raise_error("main.ess", "Cannot operate on `" + left_type + "` and `" + right_type + "`", data, node.token.pos)
+                raise_error("main.ess", "Cannot operate on `" + left_type.name + "` and `" + right_type.name + "`", data, node.op_tok.pos)
 
             return left_type
 
@@ -679,9 +685,6 @@ class Compiler:
         self.result += " " + symbol.name + ";"
 
     def variable_assignment(self, var, symbol):
-        if symbol.type != var.expr.type:
-            raise_error("main.ess", "Variable with type `" + symbol.type.name + "` cannot be assigned to type `" + var.expr.type.name + "`", data, var.expr.tok_pos)
-
         self.result += symbol.name + "="
         self.result += self.expr(var.expr.node)
         self.result += ";"
