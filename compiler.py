@@ -284,6 +284,9 @@ class Program(AST):
         self.symbol_table.add(TYPE_VOID)
         self.symbol_table.add(TYPE_INT)
         self.symbol_table.add(TYPE_FLOAT)
+
+        symbol_tables = SymbolTables()
+        symbol_tables.add(self.symbol_table)
         
         for decl in decls:
 
@@ -292,6 +295,7 @@ class Program(AST):
             
             if isinstance(decl, FunctionDeclarationNode):
                 self.symbol_table.add(FunctionSymbol(decl.name_tok.value, self.symbol_table.get(decl.type_tok.value)))
+                decl.create_symbol_table(symbol_tables)
             
             elif isinstance(decl, VariableDeclarationNode):
                 self.symbol_table.add(VarSymbol(decl.name_tok.value, self.symbol_table.get(decl.type_tok.value)))
@@ -303,9 +307,12 @@ class FunctionDeclarationNode(Node):
         self.args = args
         self.decls = decls
         self.statements = statements
+
+    def create_symbol_table(self, symbol_tables):
+
         self.symbol_table = SymbolTable()
 
-        for decl in decls:
+        for decl in self.decls:
 
             if self.symbol_table.has(decl.name_tok.value):
                 raise_error("main.ess", "Symbol `" + decl.name_tok.value + "` has already been defined", data, decl.name_tok.pos)
@@ -314,7 +321,7 @@ class FunctionDeclarationNode(Node):
                 raise_error("main.ess", "Cannot define function in other function", data, decl.type_tok.pos)
                 
             elif isinstance(decl, VariableDeclarationNode):
-                self.symbol_table.add(VarSymbol(decl.name_tok.value, self.symbol_table.get(decl.type_tok.value)))
+                self.symbol_table.add(VarSymbol(decl.name_tok.value, symbol_tables.get(decl.type_tok.value)))
 
 
 class VariableDeclarationNode(Node):
