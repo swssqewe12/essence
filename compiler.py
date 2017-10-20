@@ -288,8 +288,7 @@ class Program(AST):
         self.symbol_table.add(TYPE_INT)
         self.symbol_table.add(TYPE_FLOAT)
 
-        symbol_tables = SymbolTables()
-        symbol_tables.add(self.symbol_table)
+        symbol_tables = SymbolTables(self.symbol_table)
         
         for decl in decls:
 
@@ -572,8 +571,7 @@ class Parser(object):
 class SemanticAnalyzer(NodeVisitor):
     
     def visit_Program(self, program):
-        tables = SymbolTables()
-        tables.add(program.symbol_table)
+        tables = SymbolTables(program.symbol_table)
         
         for decl in program.decls:
             self.visit(decl, tables)
