@@ -192,65 +192,6 @@ class Lexer(object):
 
 ###############################################################################
 #                                                                             #
-#  SYMBOLS                                                                    #
-#                                                                             #
-###############################################################################
-
-class SymbolTable:
-    def __init__(self):
-        self.symbols = {}
-        self.parent = None
-        self.scope_level = 0
-
-    def set_parent(self, parent):
-        self.parent = parent
-        self.scope_level = parent.scope_level + 1
-    
-    def add(self, symbol):
-        self.symbols[symbol.name] = symbol
-
-    def has(self, name):
-        return name in self.symbols
-
-    def get(self, name):
-        return self.symbols.get(name, None)
-
-    def get_global(self, name):
-        result = self.get(name)
-        if result == None and self.parent != None:
-            return self.parent.get_global(name)
-        return result
-
-    def has_global(self, name):
-        if self.has(name):
-            return True
-        if self.parent != None:
-            return self.parent.has_global(name)
-        return False
-
-class Symbol(object):
-    def __init__(self, name, typ=None):
-        self.name = name
-        self.type = typ
-
-class VarSymbol(Symbol):
-    def __init__(self, name, typ):
-        Symbol.__init__(self, name, typ)
-
-class BuiltInTypeSymbol(Symbol):
-    def __init__(self, name):
-        Symbol.__init__(self, name)
-
-class FunctionSymbol(Symbol):
-    def __init__(self, name, typ):
-        Symbol.__init__(self, name, typ)
-
-TYPE_VOID   = BuiltInTypeSymbol("void")
-TYPE_INT    = BuiltInTypeSymbol("int")
-TYPE_FLOAT  = BuiltInTypeSymbol("float")
-
-###############################################################################
-#                                                                             #
 #  NODES AND NODE VISITOR                                                     #
 #                                                                             #
 ###############################################################################
@@ -273,23 +214,7 @@ class Program(Node):
     def __init__(self, decls, assignments):
         self.decls = decls
         self.assignments = assignments
-        self.symbol_table = SymbolTable()
-        self.symbol_table.add(TYPE_VOID)
-        self.symbol_table.add(TYPE_INT)
-        self.symbol_table.add(TYPE_FLOAT)
         
-        for decl in decls:
-
-            if self.symbol_table.has(decl.name_tok.value):
-                raise_error("main.ess", "Symbol `" + decl.name_tok.value + "` has already been defined", data, decl.name_tok.pos)
-            
-            if isinstance(decl, FunctionDeclarationNode):
-                self.symbol_table.add(FunctionSymbol(decl.name_tok.value, self.symbol_table.get(decl.type_tok.value)))
-                decl.create_symbol_table(self.symbol_table)
-            
-            elif isinstance(decl, VariableDeclarationNode):
-                self.symbol_table.add(VarSymbol(decl.name_tok.value, self.symbol_table.get(decl.type_tok.value)))
-
 class FunctionDeclarationNode(Node):
     def __init__(self, typ, name, args, decls, statements):
         self.type_tok = typ
@@ -297,23 +222,6 @@ class FunctionDeclarationNode(Node):
         self.args = args
         self.decls = decls
         self.statements = statements
-
-    def create_symbol_table(self, parent_table):
-
-        self.symbol_table = SymbolTable()
-        self.symbol_table.set_parent(parent_table)
-
-        for decl in self.decls:
-
-            if self.symbol_table.has(decl.name_tok.value):
-                raise_error("main.ess", "Symbol `" + decl.name_tok.value + "` has already been defined", data, decl.name_tok.pos)
-            
-            if isinstance(decl, FunctionDeclarationNode):
-                raise_error("main.ess", "Cannot define function in other function", data, decl.type_tok.pos)
-                
-            elif isinstance(decl, VariableDeclarationNode):
-                self.symbol_table.add(VarSymbol(decl.name_tok.value, self.symbol_table.get_global(decl.type_tok.value)))
-
 
 class VariableDeclarationNode(Node):
     def __init__(self, typ, name):
@@ -543,6 +451,96 @@ class Parser(object):
             node = BinOpNode(left=node, op=token, right=self.term())
 
         return node
+
+###############################################################################
+#                                                                             #
+#  SYMBOLS                                                                    #
+#                                                                             #
+###############################################################################
+
+class SymbolTable:
+    def __init__(self):
+        self.symbols = {}
+        self.parent = None
+        self.scope_level = 0
+
+    def set_parent(self, parent):
+        self.parent = parent
+        self.scope_level = parent.scope_level + 1
+    
+    def add(self, symbol):
+        self.symbols[symbol.name] = symbol
+
+    def has(self, name):
+        return name in self.symbols
+
+    def get(self, name):
+        return self.symbols.get(name, None)
+
+    def get_global(self, name):
+        result = self.get(name)
+        if result == None and self.parent != None:
+            return self.parent.get_global(name)
+        return result
+
+    def has_global(self, name):
+        if self.has(name):
+            return True
+        if self.parent != None:
+            return self.parent.has_global(name)
+        return False
+
+class Symbol(object):
+    def __init__(self, name, typ=None):
+        self.name = name
+        self.type = typ
+
+class VarSymbol(Symbol):
+    def __init__(self, name, typ):
+        Symbol.__init__(self, name, typ)
+
+class BuiltInTypeSymbol(Symbol):
+    def __init__(self, name):
+        Symbol.__init__(self, name)
+
+class FunctionSymbol(Symbol):
+    def __init__(self, name, typ):
+        Symbol.__init__(self, name, typ)
+
+TYPE_VOID   = BuiltInTypeSymbol("void")
+TYPE_INT    = BuiltInTypeSymbol("int")
+TYPE_FLOAT  = BuiltInTypeSymbol("float")
+
+###############################################################################
+#                                                                             #
+#  SYMBOL TABLE BUILDER                                                       #
+#                                                                             #
+###############################################################################
+
+class SymbolTableBuilder(NodeVisitor):
+
+    def visit_Program(self, program):
+        program.symbol_table = SymbolTable()
+        program.symbol_table.add(TYPE_VOID)
+        program.symbol_table.add(TYPE_INT)
+        program.symbol_table.add(TYPE_FLOAT)
+
+        for decl in program.decls:
+            self.visit(decl, program.symbol_table)
+
+    def visit_FunctionDeclarationNode(self, func, parent_table):
+
+        parent_table.add(FunctionSymbol(func.name_tok.value, parent_table.get_global(func.type_tok.value)))
+
+        func.symbol_table = SymbolTable()
+        func.symbol_table.set_parent(parent_table)
+
+        for decl in func.decls:
+            self.visit(decl, func.symbol_table)
+
+    def visit_VariableDeclarationNode(self, var, parent_table):
+
+        parent_table.add(VarSymbol(var.name_tok.value, parent_table.get_global(var.type_tok.value)))
 
 ###############################################################################
 #                                                                             #
@@ -850,6 +848,7 @@ if __name__ == '__main__':
     print json.dumps(program, default=lambda o: o.__dict__, indent=4, sort_keys=True)
     print
 
+    SymbolTableBuilder().visit(program)
     SemanticAnalyzer().visit(program)
     compiler = Compiler(program)
     result = compiler.compile()
