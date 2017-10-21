@@ -673,111 +673,101 @@ requirements = {
 
 class ExpressionCompiler(NodeVisitor):
 
-    def compile(self, expression):
-        self.result = ""
-        self.visit(expression.node)
-        return self.result
+    def visit_ExpressionNode(self, expression):
+        return self.visit(expression.node)
 
     def visit_NumberNode(self, node):
-        self.result += "(" + node.token.value + ")"
+        return "(" + node.token.value + ")"
 
-    def visit_BinOpNode(self, node):
-        
+    def visit_BinOpNode(self, node):        
         if node.op_tok.value == "^":
             requirements["math"] = True
-            self.result += "pow("
-            self.visit(node.left)
-            self.result += ","
-            self.visit(node.right)
-            self.result += ")"
-        else:
-            self.visit(node.left)
-            self.result += node.op_tok.value
-            self.visit(node.right)
+            return "pow(" + self.visit(node.left) + "," + self.visit(node.right) + ")"
+        return self.visit(node.left) + node.op_tok.value + self.visit(node.right)
 
     def visit_UnaryOpNode(self, node):
-        self.result += node.op_tok.value
-        self.visit(node.node)
+        return node.op_tok.value + self.visit(node.node)
 
     def visit_VariableNode(self, node):
-        self.result += node.name_tok.value
+        return node.name_tok.value
 
 #####################################
 # Main Compiler                     #
 #####################################
 
 class Compiler(NodeVisitor):
-    def __init__(self, program):
+    def __init__(self):
         self.expr_compiler = ExpressionCompiler()
-        self.program = program
-        self.result = ""
 
-    def compile(self):
-        for decl in self.program.decls:
+    def visit_Program(self, program):
+        result = ""
+        
+        for decl in program.decls:
             if isinstance(decl, VariableDeclarationNode):
-                self.visit(decl, self.program.symbol_table)
+                result += self.visit(decl, program.symbol_table)
 
-        for assignment in self.program.assignments:
-            self.visit(assignment, self.program.symbol_table)
+        for assignment in program.assignments:
+            result += self.visit(assignment, program.symbol_table)
 
-        for decl in self.program.decls:
+        for decl in program.decls:
             if isinstance(decl, FunctionDeclarationNode):
-                self.visit(decl)
+                result += self.visit(decl)
         
-        self.requirements()
-        
-        return self.result
+        return self.requirements() + result
 
     def requirements(self):
-
+        result = ""
+        
         if requirements["math"]:
-            self.result = "#include <math.h>\n" + self.result
+            result += "#include <math.h>\n"
+
+        return result
 
     ##########################################################################
 
     def visit_FunctionDeclarationNode(self, func):
+        result = ""
         symbol = func.symbol_table.parent.get_global(func.name_tok.value)
 
         if symbol.type == TYPE_VOID:
-            self.result += "void"
+            result += "void"
         elif symbol.type == TYPE_INT:
-            self.result += "int"
+            result += "int"
         elif symbol.type == TYPE_FLOAT:
-            self.result += "float"
+            result += "float"
         else:
             raise Exception("Compiler doesn't support built-in type " + func.type_tok.value + " as a function type")
-        self.result += " " + symbol.name + "(){"
+        result += " " + symbol.name + "(){"
 
         for decl in func.decls:
-            self.visit(decl, func.symbol_table)
+            result += self.visit(decl, func.symbol_table)
             
         for statement in func.statements:
-            self.visit(statement, func.symbol_table)
+            result += self.visit(statement, func.symbol_table)
             
-        self.result += "}"
+        return result + "}"
 
     def visit_VariableDeclarationNode(self, var, parent_table):
+        result = ""
         symbol = parent_table.get_global(var.name_tok.value)
         
         if symbol.type == TYPE_VOID:
             raise_error("main.ess", "Variables cannot be declared with type `void`", data, var.type_tok.pos)
         elif symbol.type == TYPE_INT:
-            self.result += "int"
+            result += "int"
         elif symbol.type == TYPE_FLOAT:
-            self.result += "float"
+            result += "float"
         else:
             raise Exception("Compiler doesn't support built-in type " + var.type_tok.value + " as a variable type")
-        self.result += " " + symbol.name + ";"
+        return result + " " + symbol.name + ";"
+
 
     def visit_AssignmentNode(self, assignment, parent_table):
         symbol = parent_table.get_global(assignment.name_tok.value)
-        
-        self.result += symbol.name + "="
-        self.visit(assignment.expr)
-        self.result += ";"
+        return symbol.name + "=" + self.visit(assignment.expr) + ";"
 
     def visit_ExpressionNode(self, expression):
-        self.result += self.expr_compiler.compile(expression)
+        return self.expr_compiler.visit(expression)
 
 ###############################################################################
 #                                                                             #
@@ -847,16 +837,13 @@ if __name__ == '__main__':
         raise_simple_error("main.ess", "Empty file")
 
     lexer = Lexer(data)
-    parser = Parser(lexer)
-    program = parser.parse()
+    program = Parser(lexer).parse()
+    SymbolTableBuilder().visit(program)
+    SemanticAnalyzer().visit(program)
+    result = Compiler().visit(program)
 
     print json.dumps(program, default=lambda o: o.__dict__, indent=4, sort_keys=True)
     print
-
-    SymbolTableBuilder().visit(program)
-    SemanticAnalyzer().visit(program)
-    compiler = Compiler(program)
-    result = compiler.compile()
 
     dir_ = "project/build/c"
 
