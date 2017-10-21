@@ -262,10 +262,7 @@ TYPE_FLOAT  = BuiltInTypeSymbol("float")
 #                                                                             #
 ###############################################################################
 
-class AST(object):
-    pass
-
-class Node(AST):
+class Node(object):
     pass
 
 class NodeVisitor(object):
@@ -279,7 +276,7 @@ class NodeVisitor(object):
 
 #####################################
 
-class Program(AST):
+class Program(Node):
     def __init__(self, decls, assignments):
         self.decls = decls
         self.assignments = assignments
@@ -330,15 +327,6 @@ class VariableDeclarationNode(Node):
     def __init__(self, typ, name):
         self.type_tok = typ
         self.name_tok = name
-##        self.expr = expr
-##
-##        if expr == None:
-##            if self.type_tok.value == 'int':
-##                self.expr = ExpressionNode(NumberNode(Token(INTEGER, "0")))
-##            elif self.type_tok.value == 'float':
-##                self.expr = ExpressionNode(NumberNode(Token(FLOAT, "0.0")))
-##            elif self.type_tok.value == "void":
-##                raise_error("main.ess", "Variables cannot be defined with type `void`", data, self.type_tok.pos)
 
 class ExpressionNode(Node):
     def __init__(self, node, pos):
