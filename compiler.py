@@ -587,51 +587,19 @@ class SemanticAnalyzer(NodeVisitor):
         if not isinstance(symbol, BuiltInTypeSymbol):
             raise_error("main.ess", "Expected built-in type but instead got " + get_symbol_type(symbol) + " `" + symbol.name + "`", data, decl.type_tok.pos)
 
-    def visit_ExpressionNode(self, expr, parent_symbol):
-        expr.set_type(self.expr_type(expr.node, parent_symbol))
+    def visit_ExpressionNode(self, expr, parent_table):
+        expr.set_type(ExpressionTypeAnalyzer().visit(expr.node, parent_table))
         expr.set_constant(self.expr_is_constant(expr.node))
 
-        if parent_symbol.scope_level == 0: # root scope
+        if parent_table.scope_level == 0: # root scope
             if not expr.is_constant:
                 raise_error("main.ess", "Expected constant expression at root scope", data, expr.tok_pos)
-
-        #self.visit(expr.node, symbol_tables)
 
     def generic_visit(self, node, *args):
         pass
 
-    ###########################################################################
-
-    def expr_type(self, node, parent_table):
-        
-        if isinstance(node, NumberNode):
-            if node.token.type == INTEGER:
-                return TYPE_INT
-            elif node.token.type == FLOAT:
-                return TYPE_FLOAT
-            else:
-                raise Exception("SemanticAnalyzer.expr_type can not handle " + node.token.type + " NumberNodes")
-
-        if isinstance(node, BinOpNode):
-            left_type = self.expr_type(node.left, parent_table)
-            right_type = self.expr_type(node.right, parent_table)
-
-            if left_type != right_type:
-                raise_error("main.ess", "Cannot operate on `" + left_type.name + "` and `" + right_type.name + "`", data, node.op_tok.pos)
-
-            return left_type
-
-        if isinstance(node, UnaryOpNode):
-            return self.expr_type(node.node, parent_table)
-
-        if isinstance(node, VariableNode):
-            var = parent_table.get_global(node.name_tok.value)
-            if var == None:
-                raise_error("main.ess", "Symbol `" + node.name_tok.value + "` not found", data, node.name_tok.pos)
-            return var.type
-
-        raise Exception("SemanticAnalyzer.expr_type can not handle " + type(node).__name__)
-
+    ########################################################################### 
+       
     def expr_is_constant(self, node):
 
         if isinstance(node, NumberNode):
@@ -650,6 +618,37 @@ class SemanticAnalyzer(NodeVisitor):
 
         elif isinstance(node, VariableNode):
             return False
+
+class ExpressionTypeAnalyzer(NodeVisitor):
+
+    def visit_NumberNode(self, node, parent_table):
+        
+        if node.token.type == INTEGER:
+            return TYPE_INT
+        elif node.token.type == FLOAT:
+            return TYPE_FLOAT
+        else:
+            raise Exception("SemanticAnalyzer.expr_type can not handle " + node.token.type + " NumberNodes")
+
+    def visit_BinOpNode(self, node, parent_table):
+        left_type = self.visit(node.left, parent_table)
+        right_type = self.visit(node.right, parent_table)
+
+        if left_type != right_type:
+            raise_error("main.ess", "Cannot operate on `" + left_type.name + "` and `" + right_type.name + "`", data, node.op_tok.pos)
+
+        return left_type
+
+    def visit_UnaryOpNode(self, node, parent_table):
+        return self.visit(node.node, parent_table)
+
+    def visit_VariableNode(self, node, parent_table):
+
+        var = parent_table.get_global(node.name_tok.value)
+        if var == None:
+            raise_error("main.ess", "Symbol `" + node.name_tok.value + "` not found", data, node.name_tok.pos)
+        return var.type
+        
 
 ###############################################################################
 #                                                                             #
