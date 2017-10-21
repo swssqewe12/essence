@@ -549,6 +549,9 @@ class SymbolTableBuilder(NodeVisitor):
 ###############################################################################
 
 class SemanticAnalyzer(NodeVisitor):
+
+    def __init__(self):
+        self.expr_type_analyzer = ExpressionTypeAnalyzer()
     
     def visit_Program(self, program):
         
@@ -588,7 +591,7 @@ class SemanticAnalyzer(NodeVisitor):
             raise_error("main.ess", "Expected built-in type but instead got " + get_symbol_type(symbol) + " `" + symbol.name + "`", data, decl.type_tok.pos)
 
     def visit_ExpressionNode(self, expr, parent_table):
-        expr.set_type(ExpressionTypeAnalyzer().visit(expr.node, parent_table))
+        expr.set_type(self.expr_type_analyzer.visit(expr.node, parent_table))
         expr.set_constant(self.expr_is_constant(expr.node))
 
         if parent_table.scope_level == 0: # root scope
@@ -669,18 +672,17 @@ requirements = {
 #####################################
 
 class ExpressionCompiler(NodeVisitor):
-    def __init__(self, expression):
-        self.expression = expression
-        self.result = ""
 
-    def compile(self):
-        self.visit(self.expression.node)
+    def compile(self, expression):
+        self.result = ""
+        self.visit(expression.node)
         return self.result
 
     def visit_NumberNode(self, node):
         self.result += "(" + node.token.value + ")"
 
     def visit_BinOpNode(self, node):
+        
         if node.op_tok.value == "^":
             requirements["math"] = True
             self.result += "pow("
@@ -706,6 +708,7 @@ class ExpressionCompiler(NodeVisitor):
 
 class Compiler(NodeVisitor):
     def __init__(self, program):
+        self.expr_compiler = ExpressionCompiler()
         self.program = program
         self.result = ""
 
@@ -774,8 +777,7 @@ class Compiler(NodeVisitor):
         self.result += ";"
 
     def visit_ExpressionNode(self, expression):
-        expression_compiler = ExpressionCompiler(expression)
-        self.result += expression_compiler.compile()
+        self.result += self.expr_compiler.compile(expression)
 
 ###############################################################################
 #                                                                             #
