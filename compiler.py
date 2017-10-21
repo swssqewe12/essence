@@ -561,6 +561,10 @@ class SemanticAnalyzer(NodeVisitor):
     def visit_FunctionDeclarationNode(self, func, parent_table):
         self.visit_FunctionDeclarationNode_or_VariableDeclarationNode(func, parent_table)
 
+        for decl in func.decls:
+            if not isinstance(decl, VariableDeclarationNode):
+                raise_error("main.ess", "Cannot have function declaration in other function", data, decl.name_tok.pos)
+
         for statement in func.statements:
             self.visit(statement, func.symbol_table)
 
