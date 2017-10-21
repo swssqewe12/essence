@@ -391,14 +391,25 @@ class Parser(object):
         statements = []
         self.eat(LBRACE)
         while not self.token_is(RBRACE):
-            decl, assignment = self.declaration()
+            decl, statement = self.declaration_or_statement()
             decls += decl
-            statements += assignment
+            statements += statement
         self.eat(RBRACE)
         return decls, statements
 
+    def declaration_or_statement(self):
+        if self.peek(1).type == EQUALS:
+            return [], [self.statement()]
+        else:
+            return self.declaration()
+
     def statement(self):
-        return
+        name = self.eat(IDENTIFIER)
+        self.eat(EQUALS)
+        expr = self.expression()
+        self.eat(SEMI)
+
+        return AssignmentNode(name, expr)
 
     def argument_list(self):
         self.eat(LPAREN)

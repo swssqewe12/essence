@@ -3,4 +3,5 @@ int a = 5;
 void test()
 {
 	int b = a + 7;
+	b = 46;
 }
