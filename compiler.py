@@ -272,21 +272,22 @@ class AssignmentNode(Node):
 class Parser(object):
     def __init__(self, lexer):
         self.lexer = lexer
-        self.current_token = self.lexer.get_next_token()
+        self.future_tokens = []
+        self.next_token()
 
     def error(self):
         raise_error("main.ess", "Invalid syntax", self.lexer.text, self.current_token.pos)
 
     def tryeat(self, token_type):
         if self.current_token.type == token_type:
-            self.current_token = self.lexer.get_next_token()
+            self.next_token()
             return True
         return False
 
     def eat(self, *token_types):
         value = self.current_token
         if not token_types:
-            self.current_token = self.lexer.get_next_token()
+            self.next_token()
             return value
         error = True
         for token_type in token_types:
@@ -306,6 +307,23 @@ class Parser(object):
         if not self.token_is(EOF):
             self.error()
         return tree
+
+    def peek(self, num):
+        if num < 1:
+            return self.current_token
+        num2 = num
+        while num2 > 0:
+            if len(self.future_tokens) < num:
+                self.future_tokens.append(self.lexer.get_next_token())
+            num2-=1
+        return self.future_tokens[num-1]
+
+    def next_token(self):
+        if len(self.future_tokens) < 1:
+            self.current_token = self.lexer.get_next_token()
+        else:
+            self.current_token = self.future_tokens[0]
+            self.future_tokens.pop(0)
 
     #####################
     # Rules             #
