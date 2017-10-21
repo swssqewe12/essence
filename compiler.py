@@ -258,7 +258,7 @@ TYPE_FLOAT  = BuiltInTypeSymbol("float")
 
 ###############################################################################
 #                                                                             #
-#  PARSER                                                                     #
+#  NODES AND NODE VISITOR                                                     #
 #                                                                             #
 ###############################################################################
 
@@ -363,9 +363,11 @@ class AssignmentNode(Node):
         self.name_tok = name_tok
         self.expr = expr
 
-#####################################
-# Parser                            #
-#####################################
+###############################################################################
+#                                                                             #
+#  PARSER                                                                     #
+#                                                                             #
+###############################################################################
 
 class Parser(object):
     def __init__(self, lexer):
@@ -676,22 +678,67 @@ requirements = {
 }
 
 #####################################
-# Compiler                          #
+# Expression Compiler               #
 #####################################
 
-class Compiler:
+class ExpressionCompiler(NodeVisitor):
+    def __init__(self, expression):
+        self.expression = expression
+        self.result = ""
+
+    def compile(self, symbol_tables):
+        self.visit(self.expression.node, symbol_tables)
+        return self.result
+
+    def visit_NumberNode(self, node, symbol_tables):
+        self.result += "(" + node.token.value + ")"
+
+    def visit_BinOpNode(self, node, symbol_tables):
+        if node.op_tok.value == "^":
+            requirements["math"] = True
+            self.result += "pow("
+            self.visit(node.left, symbol_tables)
+            self.result += ","
+            self.visit(node.right, symbol_tables)
+            self.result += ")"
+        else:
+            self.visit(node.left, symbol_tables)
+            self.result += node.op_tok.value
+            self.visit(node.right, symbol_tables)
+
+    def visit_UnaryOpNode(self, node, symbol_tables):
+        self.result += node.op_tok.value
+        self.visit(node.node, symbol_tables)
+
+    def visit_VariableNode(self, node, symbol_tables):
+        self.result += node.name_tok.value
+
+#####################################
+# Main Compiler                     #
+#####################################
+
+class Compiler(NodeVisitor):
     def __init__(self, program):
         self.program = program
         self.result = ""
 
     def compile(self):
         symbol_tables = SymbolTables(self.program.symbol_table)
-        self.variables(symbol_tables)
-        self.functions(symbol_tables)
+
+        for decl in self.program.decls:
+            if isinstance(decl, VariableDeclarationNode):
+                self.visit(decl, symbol_tables)
+
+        for assignment in self.program.assignments:
+            self.visit(assignment, symbol_tables)
+
+        for decl in self.program.decls:
+            if isinstance(decl, FunctionDeclarationNode):
+                self.visit(decl, symbol_tables)
+        
         self.requirements()
+        
         return self.result
-    
-    ##########################################################################
 
     def requirements(self):
 
@@ -700,22 +747,10 @@ class Compiler:
 
     ##########################################################################
 
-    def functions(self, symbol_tables):
-        for decl in self.program.decls:
-            if isinstance(decl, FunctionDeclarationNode):
-                symbol_tables.add(decl.symbol_table)
-                self.function(decl, symbol_tables.get(decl.name_tok.value), symbol_tables)
-                symbol_tables.pop()
+    def visit_FunctionDeclarationNode(self, func, symbol_tables):
+        symbol = symbol_tables.get(func.name_tok.value)
+        symbol_tables.add(func.symbol_table)
 
-    def variables(self, symbol_tables):
-        for decl in self.program.decls:
-            if isinstance(decl, VariableDeclarationNode):
-                self.variable_decl(decl, symbol_tables.get(decl.name_tok.value))
-
-        for assignment in self.program.assignments:
-            self.variable_assignment(assignment, symbol_tables.get(assignment.name_tok.value))
-
-    def function(self, func, symbol, symbol_tables):
         if symbol.type == TYPE_VOID:
             self.result += "void"
         elif symbol.type == TYPE_INT:
@@ -727,15 +762,18 @@ class Compiler:
         self.result += " " + symbol.name + "(){"
 
         for decl in func.decls:
-            self.variable_decl(decl, symbol_tables.get(decl.name_tok.value))
-
+            self.visit(decl, symbol_tables)
+            
         for statement in func.statements:
-            if isinstance(statement, AssignmentNode):
-                self.variable_assignment(statement, symbol_tables.get(statement.name_tok.value))
-
+            self.visit(statement, symbol_tables)
+            
         self.result += "}"
+        
+        symbol_tables.pop()
 
-    def variable_decl(self, var, symbol):
+    def visit_VariableDeclarationNode(self, var, symbol_tables):
+        symbol = symbol_tables.get(var.name_tok.value)
+        
         if symbol.type == TYPE_VOID:
             raise_error("main.ess", "Variables cannot be declared with type `void`", data, var.type_tok.pos)
         elif symbol.type == TYPE_INT:
@@ -746,40 +784,16 @@ class Compiler:
             raise Exception("Compiler doesn't support built-in type " + var.type_tok.value + " as a variable type")
         self.result += " " + symbol.name + ";"
 
-    def variable_assignment(self, var, symbol):
+    def visit_AssignmentNode(self, assignment, symbol_tables):
+        symbol = symbol_tables.get(assignment.name_tok.value)
+        
         self.result += symbol.name + "="
-        self.result += self.expr(var.expr.node)
+        self.visit(assignment.expr, symbol_tables)
         self.result += ";"
 
-    def expr(self, node):
-        result = "("
-
-        if isinstance(node, NumberNode):
-            result += node.token.value
-        
-        elif isinstance(node, BinOpNode):
-            if node.op_tok.value == "^":
-                requirements["math"] = True
-                result += "pow("
-                result += self.expr(node.left)
-                result += ","
-                result += self.expr(node.right)
-                result += ")"
-            else:
-                result += self.expr(node.left)
-                result += node.op_tok.value
-                result += self.expr(node.right)
-        
-        elif isinstance(node, UnaryOpNode):
-            result += node.op_tok.value
-            result += self.expr(node.node)
-
-        elif isinstance(node, VariableNode):
-            result += node.name_tok.value
-        
-        result += ")"
-        return result
-        
+    def visit_ExpressionNode(self, expression, symbol_tables):
+        expression_compiler = ExpressionCompiler(expression)
+        self.result += expression_compiler.compile(symbol_tables)
 
 ###############################################################################
 #                                                                             #
