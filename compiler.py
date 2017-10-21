@@ -559,6 +559,9 @@ class SymbolTableBuilder(NodeVisitor):
 
     def visit_FunctionDeclarationNode(self, func, parent_table):
 
+        if parent_table.has(func.name_tok.value):
+            raise_error("main.ess", "Symbol `" + func.name_tok.value + "` already declared", data, func.name_tok.pos)
+
         parent_table.add(FunctionSymbol(func.name_tok.value, parent_table.get_global(func.type_tok.value)))
 
         func.symbol_table = SymbolTable()
@@ -568,6 +571,9 @@ class SymbolTableBuilder(NodeVisitor):
             self.visit(decl, func.symbol_table)
 
     def visit_VariableDeclarationNode(self, var, parent_table):
+
+        if parent_table.has(var.name_tok.value):
+            raise_error("main.ess", "Symbol `" + var.name_tok.value + "` already declared", data, var.name_tok.pos)
 
         parent_table.add(VarSymbol(var.name_tok.value, parent_table.get_global(var.type_tok.value)))
 
@@ -618,7 +624,7 @@ class SemanticAnalyzer(NodeVisitor):
 
     def visit_FunctionDeclarationNode_or_VariableDeclarationNode(self, decl, parent_table):
         symbol = parent_table.get_global(decl.type_tok.value)
-        
+
         if symbol == None:
             raise_error("main.ess", "Symbol `" + decl.type_tok.value + "` not found", data, decl.type_tok.pos)
         
