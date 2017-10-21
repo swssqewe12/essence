@@ -196,35 +196,15 @@ class Lexer(object):
 #                                                                             #
 ###############################################################################
 
-class SymbolTables:
-    def __init__(self, *args):
-        self.tables = []
-        self.length = 0
-        for arg in args:
-            self.add(arg)
-
-    def add(self, table):
-        self.tables.append(table)
-        self.length += 1
-
-    def pop(self):
-        self.length -= 1
-        return self.tables.pop()
-
-    def any_has(self, name):
-        return any(table.has(name) for table in self.tables)
-
-    def get(self, name):
-        for table in reversed(self.tables):
-            symbol = table.get(name)
-            if symbol == None:
-                continue
-            return symbol
-        return None
-
 class SymbolTable:
     def __init__(self):
         self.symbols = {}
+        self.parent = None
+        self.scope_level = 0
+
+    def set_parent(self, parent):
+        self.parent = parent
+        self.scope_level = parent.scope_level + 1
     
     def add(self, symbol):
         self.symbols[symbol.name] = symbol
@@ -234,6 +214,19 @@ class SymbolTable:
 
     def get(self, name):
         return self.symbols.get(name, None)
+
+    def get_global(self, name):
+        result = self.get(name)
+        if result == None and self.parent != None:
+            return self.parent.get_global(name)
+        return result
+
+    def has_global(self, name):
+        if self.has(name):
+            return True
+        if self.parent != None:
+            return self.parent.has_global(name)
+        return False
 
 class Symbol(object):
     def __init__(self, name, typ=None):
@@ -284,8 +277,6 @@ class Program(Node):
         self.symbol_table.add(TYPE_VOID)
         self.symbol_table.add(TYPE_INT)
         self.symbol_table.add(TYPE_FLOAT)
-
-        symbol_tables = SymbolTables(self.symbol_table)
         
         for decl in decls:
 
@@ -294,7 +285,7 @@ class Program(Node):
             
             if isinstance(decl, FunctionDeclarationNode):
                 self.symbol_table.add(FunctionSymbol(decl.name_tok.value, self.symbol_table.get(decl.type_tok.value)))
-                decl.create_symbol_table(symbol_tables)
+                decl.create_symbol_table(self.symbol_table)
             
             elif isinstance(decl, VariableDeclarationNode):
                 self.symbol_table.add(VarSymbol(decl.name_tok.value, self.symbol_table.get(decl.type_tok.value)))
@@ -307,9 +298,10 @@ class FunctionDeclarationNode(Node):
         self.decls = decls
         self.statements = statements
 
-    def create_symbol_table(self, symbol_tables):
+    def create_symbol_table(self, parent_table):
 
         self.symbol_table = SymbolTable()
+        self.symbol_table.set_parent(parent_table)
 
         for decl in self.decls:
 
@@ -320,7 +312,7 @@ class FunctionDeclarationNode(Node):
                 raise_error("main.ess", "Cannot define function in other function", data, decl.type_tok.pos)
                 
             elif isinstance(decl, VariableDeclarationNode):
-                self.symbol_table.add(VarSymbol(decl.name_tok.value, symbol_tables.get(decl.type_tok.value)))
+                self.symbol_table.add(VarSymbol(decl.name_tok.value, self.symbol_table.get_global(decl.type_tok.value)))
 
 
 class VariableDeclarationNode(Node):
@@ -561,37 +553,31 @@ class Parser(object):
 class SemanticAnalyzer(NodeVisitor):
     
     def visit_Program(self, program):
-        tables = SymbolTables(program.symbol_table)
         
         for decl in program.decls:
-            self.visit(decl, tables)
+            self.visit(decl, program.symbol_table)
 
         for assignment in program.assignments:
-            self.visit(assignment, tables)
+            self.visit(assignment, program.symbol_table)
 
-    def visit_FunctionDeclarationNode(self, func, symbol_tables):
-        self.visit_FunctionDeclarationNode_or_VariableDeclarationNode(func, symbol_tables)
-        symbol_tables.add(func.symbol_table)
+    def visit_FunctionDeclarationNode(self, func, parent_table):
+        self.visit_FunctionDeclarationNode_or_VariableDeclarationNode(func, parent_table)
 
         for statement in func.statements:
-            self.visit(statement, symbol_tables)
-        
-        symbol_tables.pop()
+            self.visit(statement, func.symbol_table)
 
-    def visit_VariableDeclarationNode(self, decl, symbol_tables):
-        self.visit_FunctionDeclarationNode_or_VariableDeclarationNode(decl, symbol_tables)
+    def visit_VariableDeclarationNode(self, decl, parent_table):
+        self.visit_FunctionDeclarationNode_or_VariableDeclarationNode(decl, parent_table)
 
-    def visit_AssignmentNode(self, assignment, symbol_tables):
-        self.visit(assignment.expr, symbol_tables)
-
-        symbol = symbol_tables.get(assignment.name_tok.value)
+    def visit_AssignmentNode(self, assignment, parent_table):
+        self.visit(assignment.expr, parent_table)
+        symbol = parent_table.get_global(assignment.name_tok.value)
 
         if symbol.type != assignment.expr.type:
             raise_error("main.ess", "Variable with type `" + symbol.type.name + "` cannot be assigned to type `" + assignment.expr.type.name + "`", data, assignment.expr.tok_pos)
 
-
-    def visit_FunctionDeclarationNode_or_VariableDeclarationNode(self, decl, symbol_tables):
-        symbol = symbol_tables.get(decl.type_tok.value)
+    def visit_FunctionDeclarationNode_or_VariableDeclarationNode(self, decl, parent_table):
+        symbol = parent_table.get_global(decl.type_tok.value)
         
         if symbol == None:
             raise_error("main.ess", "Symbol `" + decl.type_tok.value + "` not found", data, decl.type_tok.pos)
@@ -599,22 +585,22 @@ class SemanticAnalyzer(NodeVisitor):
         if not isinstance(symbol, BuiltInTypeSymbol):
             raise_error("main.ess", "Expected built-in type but instead got " + get_symbol_type(symbol) + " `" + symbol.name + "`", data, decl.type_tok.pos)
 
-    def visit_ExpressionNode(self, expr, symbol_tables):
-        expr.set_type(self.expr_type(expr.node, symbol_tables))
+    def visit_ExpressionNode(self, expr, parent_symbol):
+        expr.set_type(self.expr_type(expr.node, parent_symbol))
         expr.set_constant(self.expr_is_constant(expr.node))
 
-        if symbol_tables.length == 1: # root scope
+        if parent_symbol.scope_level == 0: # root scope
             if not expr.is_constant:
                 raise_error("main.ess", "Expected constant expression at root scope", data, expr.tok_pos)
 
-        self.visit(expr.node, symbol_tables)
+        #self.visit(expr.node, symbol_tables)
 
     def generic_visit(self, node, *args):
         pass
 
     ###########################################################################
 
-    def expr_type(self, node, symbol_tables):
+    def expr_type(self, node, parent_table):
         
         if isinstance(node, NumberNode):
             if node.token.type == INTEGER:
@@ -625,8 +611,8 @@ class SemanticAnalyzer(NodeVisitor):
                 raise Exception("SemanticAnalyzer.expr_type can not handle " + node.token.type + " NumberNodes")
 
         if isinstance(node, BinOpNode):
-            left_type = self.expr_type(node.left, symbol_tables)
-            right_type = self.expr_type(node.right, symbol_tables)
+            left_type = self.expr_type(node.left, parent_table)
+            right_type = self.expr_type(node.right, parent_table)
 
             if left_type != right_type:
                 raise_error("main.ess", "Cannot operate on `" + left_type.name + "` and `" + right_type.name + "`", data, node.op_tok.pos)
@@ -634,10 +620,10 @@ class SemanticAnalyzer(NodeVisitor):
             return left_type
 
         if isinstance(node, UnaryOpNode):
-            return self.expr_type(node.node, symbol_tables)
+            return self.expr_type(node.node, parent_table)
 
         if isinstance(node, VariableNode):
-            var = symbol_tables.get(node.name_tok.value)
+            var = parent_table.get_global(node.name_tok.value)
             if var == None:
                 raise_error("main.ess", "Symbol `" + node.name_tok.value + "` not found", data, node.name_tok.pos)
             return var.type
@@ -686,31 +672,31 @@ class ExpressionCompiler(NodeVisitor):
         self.expression = expression
         self.result = ""
 
-    def compile(self, symbol_tables):
-        self.visit(self.expression.node, symbol_tables)
+    def compile(self):
+        self.visit(self.expression.node)
         return self.result
 
-    def visit_NumberNode(self, node, symbol_tables):
+    def visit_NumberNode(self, node):
         self.result += "(" + node.token.value + ")"
 
-    def visit_BinOpNode(self, node, symbol_tables):
+    def visit_BinOpNode(self, node):
         if node.op_tok.value == "^":
             requirements["math"] = True
             self.result += "pow("
-            self.visit(node.left, symbol_tables)
+            self.visit(node.left)
             self.result += ","
-            self.visit(node.right, symbol_tables)
+            self.visit(node.right)
             self.result += ")"
         else:
-            self.visit(node.left, symbol_tables)
+            self.visit(node.left)
             self.result += node.op_tok.value
-            self.visit(node.right, symbol_tables)
+            self.visit(node.right)
 
-    def visit_UnaryOpNode(self, node, symbol_tables):
+    def visit_UnaryOpNode(self, node):
         self.result += node.op_tok.value
-        self.visit(node.node, symbol_tables)
+        self.visit(node.node)
 
-    def visit_VariableNode(self, node, symbol_tables):
+    def visit_VariableNode(self, node):
         self.result += node.name_tok.value
 
 #####################################
@@ -723,18 +709,16 @@ class Compiler(NodeVisitor):
         self.result = ""
 
     def compile(self):
-        symbol_tables = SymbolTables(self.program.symbol_table)
-
         for decl in self.program.decls:
             if isinstance(decl, VariableDeclarationNode):
-                self.visit(decl, symbol_tables)
+                self.visit(decl, self.program.symbol_table)
 
         for assignment in self.program.assignments:
-            self.visit(assignment, symbol_tables)
+            self.visit(assignment, self.program.symbol_table)
 
         for decl in self.program.decls:
             if isinstance(decl, FunctionDeclarationNode):
-                self.visit(decl, symbol_tables)
+                self.visit(decl)
         
         self.requirements()
         
@@ -747,9 +731,8 @@ class Compiler(NodeVisitor):
 
     ##########################################################################
 
-    def visit_FunctionDeclarationNode(self, func, symbol_tables):
-        symbol = symbol_tables.get(func.name_tok.value)
-        symbol_tables.add(func.symbol_table)
+    def visit_FunctionDeclarationNode(self, func):
+        symbol = func.symbol_table.parent.get_global(func.name_tok.value)
 
         if symbol.type == TYPE_VOID:
             self.result += "void"
@@ -762,17 +745,15 @@ class Compiler(NodeVisitor):
         self.result += " " + symbol.name + "(){"
 
         for decl in func.decls:
-            self.visit(decl, symbol_tables)
+            self.visit(decl, func.symbol_table)
             
         for statement in func.statements:
-            self.visit(statement, symbol_tables)
+            self.visit(statement, func.symbol_table)
             
         self.result += "}"
-        
-        symbol_tables.pop()
 
-    def visit_VariableDeclarationNode(self, var, symbol_tables):
-        symbol = symbol_tables.get(var.name_tok.value)
+    def visit_VariableDeclarationNode(self, var, parent_table):
+        symbol = parent_table.get_global(var.name_tok.value)
         
         if symbol.type == TYPE_VOID:
             raise_error("main.ess", "Variables cannot be declared with type `void`", data, var.type_tok.pos)
@@ -784,16 +765,16 @@ class Compiler(NodeVisitor):
             raise Exception("Compiler doesn't support built-in type " + var.type_tok.value + " as a variable type")
         self.result += " " + symbol.name + ";"
 
-    def visit_AssignmentNode(self, assignment, symbol_tables):
-        symbol = symbol_tables.get(assignment.name_tok.value)
+    def visit_AssignmentNode(self, assignment, parent_table):
+        symbol = parent_table.get_global(assignment.name_tok.value)
         
         self.result += symbol.name + "="
-        self.visit(assignment.expr, symbol_tables)
+        self.visit(assignment.expr)
         self.result += ";"
 
-    def visit_ExpressionNode(self, expression, symbol_tables):
+    def visit_ExpressionNode(self, expression):
         expression_compiler = ExpressionCompiler(expression)
-        self.result += expression_compiler.compile(symbol_tables)
+        self.result += expression_compiler.compile()
 
 ###############################################################################
 #                                                                             #
