@@ -607,6 +607,9 @@ class SemanticAnalyzer(NodeVisitor):
         self.visit(assignment.expr, parent_table)
         symbol = parent_table.get_global(assignment.name_tok.value)
 
+        if symbol == None:
+            raise_error("main.ess", "Symbol `" + assignment.name_tok.value + "` not found", data, assignment.name_tok.pos)
+
         if symbol.type != assignment.expr.type:
             raise_error("main.ess", "Variable with type `" + symbol.type.name + "` cannot be assigned to type `" + assignment.expr.type.name + "`", data, assignment.expr.tok_pos)
 
