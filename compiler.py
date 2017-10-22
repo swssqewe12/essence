@@ -564,6 +564,7 @@ class FunctionSymbol(Symbol):
 TYPE_VOID   = BuiltInTypeSymbol("void")
 TYPE_INT    = BuiltInTypeSymbol("int")
 TYPE_FLOAT  = BuiltInTypeSymbol("float")
+TYPE_STRING = BuiltInTypeSymbol("str")
 
 ###############################################################################
 #                                                                             #
@@ -578,6 +579,7 @@ class SymbolTableBuilder(NodeVisitor):
         program.symbol_table.add(TYPE_VOID)
         program.symbol_table.add(TYPE_INT)
         program.symbol_table.add(TYPE_FLOAT)
+        program.symbol_table.add(TYPE_STRING)
 
         for decl in program.decls:
             self.visit(decl, program.symbol_table)
@@ -688,10 +690,12 @@ class SemanticAnalyzer(NodeVisitor):
         elif isinstance(node, VariableNode):
             return False
 
+        elif isinstance(node, StringNode):
+            return False
+
 class ExpressionTypeAnalyzer(NodeVisitor):
 
     def visit_NumberNode(self, node, parent_table):
-        
         if node.token.type == INTEGER:
             return TYPE_INT
         elif node.token.type == FLOAT:
@@ -706,17 +710,23 @@ class ExpressionTypeAnalyzer(NodeVisitor):
         if left_type != right_type:
             raise_error("main.ess", "Cannot operate on `" + left_type.name + "` and `" + right_type.name + "`", data, node.op_tok.pos)
 
+        if node.op_tok.value != "+":
+            if left_type == TYPE_STRING:
+                raise_error("main.ess", "Operation not allowed for strings", data, node.op_tok.pos)
+
         return left_type
 
     def visit_UnaryOpNode(self, node, parent_table):
         return self.visit(node.node, parent_table)
 
     def visit_VariableNode(self, node, parent_table):
-
         var = parent_table.get_global(node.name_tok.value)
         if var == None:
             raise_error("main.ess", "Symbol `" + node.name_tok.value + "` not found", data, node.name_tok.pos)
         return var.type
+
+    def visit_StringNode(self, node, parent_table):
+        return TYPE_STRING
         
 
 ###############################################################################
