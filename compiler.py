@@ -891,7 +891,7 @@ if __name__ == '__main__':
     if not os.path.exists(dir_):
         os.makedirs(dir_)
 
-    f = open(dir_ + "/main.c", "w")
+    f = open(dir_ + "/main.cpp", "w")
     f.write(result)
     f.close()
 
