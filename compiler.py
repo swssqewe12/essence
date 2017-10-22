@@ -16,6 +16,7 @@ import os, string, json
 # Tokens                            #
 #####################################
 
+STRING      =   'STRING'
 IDENTIFIER  =   'IDENTIFIER'
 INTEGER     =   'INTEGER'
 FLOAT       =   'FLOAT'
@@ -65,6 +66,19 @@ class Lexer(object):
     def skip_whitespace(self):
         while self.current_char is not None and self.current_char.isspace():
             self.advance()
+
+    def string(self):
+        self.advance()
+        string = ""
+
+        while self.current_char != '"':
+            string += self.current_char
+            self.advance()
+
+        self.advance()
+        return string
+            
+            
 
     def identifier(self):
 
@@ -166,6 +180,11 @@ class Lexer(object):
             if self.current_char == ',':
                 token = Token(COMMA, ',')
                 self.advance()
+                return token
+
+            if self.current_char == '"':
+                token = Token(STRING)
+                token.val(self.string())
                 return token
 
             if self.current_char in letters:
