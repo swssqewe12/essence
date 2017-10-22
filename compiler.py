@@ -224,7 +224,7 @@ class NodeVisitor(object):
         visitor = getattr(self, method_name, self.generic_visit)
         return visitor(node, *args)
 
-    def generic_visit(self, node):
+    def generic_visit(self, node, *args):
         raise Exception('No visit_{} method'.format(type(node).__name__))
 
 #####################################
@@ -281,6 +281,10 @@ class AssignmentNode(Node):
     def __init__(self, name_tok, expr):
         self.name_tok = name_tok
         self.expr = expr
+
+class StringNode(Node):
+    def __init__(self, tok):
+        self.token = tok
 
 ###############################################################################
 #                                                                             #
@@ -436,7 +440,7 @@ class Parser(object):
         return []
 
     def factor(self):
-        "factor : (PLUS | MINUS) factor | INTEGER | FLOAT | IDENTIFIER | LPAREN expr RPAREN"
+        "factor : (PLUS | MINUS) factor | STRING | INTEGER | FLOAT | IDENTIFIER | LPAREN expr RPAREN"
         
         token = self.current_token
 
@@ -456,6 +460,8 @@ class Parser(object):
             node = self.expr()
             self.eat(RPAREN)
             return node
+
+        return StringNode(self.eat(STRING))
 
     def power(self):
         "power : factor (CARET factor)*"
